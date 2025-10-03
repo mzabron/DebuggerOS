@@ -1,0 +1,66 @@
+# Folders Unity regenerates
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+[Bb]in/
+[Ll]ightmapSnapshot/
+Recordings/
+
+# Asset meta cache
+*.pidb
+*.booproj
+*.svd
+
+# Unity auto-generated files
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.db
+*.db.meta
+*.pdb
+*.opendb
+*.VC.db
+
+# Build output
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.exe
+*.dll
+*.class
+*.jar
+
+# Crash reports
+sysinfo.txt
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS / VS Code
+.vs/
+.vscode/
+*.code-workspace
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================================
+# KEEP THESE (don’t ignore)
+# =========================================
+!Assets/
+!ProjectSettings/
+!Packages/
+!UserSettings/
