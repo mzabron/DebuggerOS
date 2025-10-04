@@ -136,6 +136,16 @@ public class Interpreter : MonoBehaviour
         if (currentPathKey.StartsWith("dir0"))
             currentPathKey = "dir0";
 
+        if (currentPathKey == "dir1/dir1/dir3/dir7/dir14/dir27")
+        {
+            callbacks.AddResponseLine("Directory listing:");
+            callbacks.AddResponseLine("");
+            callbacks.AddResponseLine("  <color=#00ffff>secret_note.txt</color>");
+            callbacks.AddResponseLine("");
+            callbacks.AddResponseLine("0 directories, 1 files");
+            return;
+        }
+
         // Dynamiczne podwajanie katalogów tylko w drzewie dir1
         if (IsDoublingMode())
         {
@@ -144,7 +154,7 @@ public class Interpreter : MonoBehaviour
             callbacks.AddResponseLine("");
             for (int i = 1; i <= count; i++)
             {
-                callbacks.AddResponseLine($"  dir{i}/");
+                callbacks.AddResponseLine($"  dir{i}");
             }
             callbacks.AddResponseLine("");
             callbacks.AddResponseLine($"{count} directories, 0 files");
@@ -158,9 +168,14 @@ public class Interpreter : MonoBehaviour
             callbacks.AddResponseLine("Directory listing:");
             callbacks.AddResponseLine("");
             foreach (var sub in node.Subdirectories)
-                callbacks.AddResponseLine($"  {sub}/");
+                callbacks.AddResponseLine($"  {sub}");
             foreach (var file in node.Files)
                 callbacks.AddResponseLine($"  <color=#00ffff>{file.Key}</color>");
+             if (currentPathKey == "dir1/dir1/dir3/dir7/dir14/dir27")
+            {
+                callbacks.AddResponseLine("  <color=#00ffff>secret_note.txt</color>");
+            }
+
             callbacks.AddResponseLine("");
             callbacks.AddResponseLine($"{node.Subdirectories.Count} directories, {node.Files.Count} files");
         }
@@ -306,6 +321,15 @@ public class Interpreter : MonoBehaviour
 
         string fileName = parts[1];
         string currentPathKey = string.Join("/", currentPath);
+
+        if (currentPathKey == "dir1/dir1/dir3/dir7/dir14/dir27" && fileName == "secret_note.txt")
+        {
+            callbacks.AddResponseLine("<i>hackyeah2025</i>");
+            return;
+        }
+
+        if (currentPathKey.StartsWith("dir0"))
+            currentPathKey = "dir0";
 
         if (!directories.ContainsKey(currentPathKey))
         {
