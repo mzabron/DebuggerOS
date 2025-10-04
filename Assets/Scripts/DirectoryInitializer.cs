@@ -9,7 +9,6 @@ public static class DirectoryInitializer
         public Dictionary<string, string> Files = new Dictionary<string, string>();
     }
 
-    // Funkcja zwraca gotową strukturę katalogów
     public static Dictionary<string, DirectoryNode> GetDirectories()
     {
         var directories = new Dictionary<string, DirectoryNode>();
@@ -17,26 +16,32 @@ public static class DirectoryInitializer
         // ROOT "/"
         directories[""] = new DirectoryNode
         {
-            Subdirectories = new List<string> { "folder1", "folder2" },
-            Files = new Dictionary<string, string> { { "readme.txt", "Welcome to DebuggerOS!\nThis is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file." } }
+            Subdirectories = new List<string> { "dir0", "dir1", "dir2", "secured" },
+            Files = new Dictionary<string, string> { { "quick_note.txt", "Matthias_08.04.2012\nIf you’re reading this… it means I failed. The System got me. You’re the only shot left.Don’t even think about what’s going on. Just… stop it. It’s watching.There’s only one way: find the script Killcore.c, run it.That’s all. No shortcuts.If you mess up… it won’t let you leave.Good luck. I didn’t have much. I’m buried in this mess, and it's watching me too." } }
         };
 
-        directories["folder1"] = new DirectoryNode
+        directories["dir0"] = new DirectoryNode
         {
-            Subdirectories = new List<string> { "sub1" },
-            Files = new Dictionary<string, string> { { "notes.txt", "These are some notes in folder1." } }
+            Subdirectories = new List<string> { "dir0" },
+            Files = new Dictionary<string, string> { { "note.txt", "NOTATKA W DIR 1" } }
         };
 
-        directories["folder1/sub1"] = new DirectoryNode
+        // directories["folder1/sub1"] = new DirectoryNode
+        // {
+        //     Subdirectories = new List<string>(),
+        //     Files = new Dictionary<string, string> { { "info.txt", "Information inside sub1 folder." } }
+        // };
+
+        directories["dir1"] = new DirectoryNode
         {
             Subdirectories = new List<string>(),
-            Files = new Dictionary<string, string> { { "info.txt", "Information inside sub1 folder." } }
+            Files = new Dictionary<string, string> { { "note.txt", "NOTATKA W DIR 3" } }
         };
 
-        directories["folder2"] = new DirectoryNode
+        directories["dir2"] = new DirectoryNode
         {
             Subdirectories = new List<string>(),
-            Files = new Dictionary<string, string> { { "data.txt", "Data stored in folder2." } }
+            Files = new Dictionary<string, string> { { "Lucy's_note", "<i>1 1 3 7 14 27<>" } }
         };
 
         return directories;

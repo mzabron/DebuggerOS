@@ -8,22 +8,22 @@ public class Interpreter : MonoBehaviour
     [System.Serializable]
     public class InterpreterCallbacks
     {
-        public System.Func<string, GameObject> AddResponseLine;
-        public System.Action ClearScreen;
-        public System.Func<string, IEnumerator> PlayTypewriterEffect;
-        public System.Action<IEnumerator> StartCoroutine;
-        public System.Action<bool> SetUserInputLineActive;
-        public System.Action<string> UpdateDirectoryPath;
+        public Func<string, GameObject> AddResponseLine;
+        public Action ClearScreen;
+        public Func<string, IEnumerator> PlayTypewriterEffect;
+        public Action<IEnumerator> StartCoroutine;
+        public Action<bool> SetUserInputLineActive;
+        public Action<string> UpdateDirectoryPath;
     }
 
     private InterpreterCallbacks callbacks;
+    private Dictionary<string, DirectoryInitializer.DirectoryNode> directories;
     private Dictionary<string, string> variables = new Dictionary<string, string>();
     private bool awaitingExitConfirmation = false;
     private List<string> currentPath = new List<string>();
 
-    private Dictionary<string, DirectoryInitializer.DirectoryNode> directories = new Dictionary<string, DirectoryInitializer.DirectoryNode>();
-
-    // ============================ INIT ============================
+    private int dir1VisitCount = 0;
+    private int doublingLevel = 0;
 
     public void Initialize(InterpreterCallbacks interpreterCallbacks)
     {
@@ -33,7 +33,6 @@ public class Interpreter : MonoBehaviour
         variables["user"] = "developer";
         variables["system"] = "DebuggerOS";
 
-        // Pobranie struktury katalogów z DirectoryInitializer.cs
         directories = DirectoryInitializer.GetDirectories();
     }
 
@@ -92,16 +91,13 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine("  ls, dir       - List directory contents");
         callbacks.AddResponseLine("  cd [dir]      - Change directory");
         callbacks.AddResponseLine("  cd ..         - Go to parent directory");
-        callbacks.AddResponseLine("  pwd           - Print working directory");
         callbacks.AddResponseLine("  cat [file]    - Show contents of a file");
+        callbacks.AddResponseLine("  pwd           - Print working directory");
         callbacks.AddResponseLine("  exit, quit    - Exit the terminal");
         callbacks.AddResponseLine("");
     }
 
-    private void ExecuteClear()
-    {
-        callbacks.ClearScreen?.Invoke();
-    }
+    private void ExecuteClear() => callbacks.ClearScreen?.Invoke();
 
     private void ExecuteEcho(string userInput)
     {
@@ -110,10 +106,7 @@ public class Interpreter : MonoBehaviour
             string textToEcho = userInput.Substring(5);
             callbacks.AddResponseLine(textToEcho);
         }
-        else
-        {
-            callbacks.AddResponseLine("");
-        }
+        else callbacks.AddResponseLine("");
     }
 
     private void ExecuteVersion()
@@ -122,63 +115,58 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine("(c) 2025 Debugger Corporation. All rights reserved.");
     }
 
-    private void ExecuteDate()
-    {
-        string currentDate = DateTime.Now.ToString("dddd, MMMM dd, yyyy");
-        callbacks.AddResponseLine($"Current date: {currentDate}");
-    }
+    private void ExecuteDate() =>
+        callbacks.AddResponseLine($"Current date: {DateTime.Now:dddd, MMMM dd, yyyy}");
 
-    private void ExecuteTime()
-    {
-        string currentTime = DateTime.Now.ToString("HH:mm:ss");
-        callbacks.AddResponseLine($"Current time: {currentTime}");
-    }
+    private void ExecuteTime() =>
+        callbacks.AddResponseLine($"Current time: {DateTime.Now:HH:mm:ss}");
 
-    private void ExecuteWhoAmI()
-    {
-        string windowsUsername = System.Environment.UserName;
-        callbacks.AddResponseLine($"{windowsUsername}");
-    }
+    private void ExecuteWhoAmI() =>
+        callbacks.AddResponseLine(System.Environment.UserName);
 
-    // ============================ DIRECTORY COMMANDS ============================
+    private bool IsDoublingMode()
+    {
+        return currentPath.Count > 0 && currentPath[0] == "dir1";
+    }
 
     private void ExecuteListDirectory()
     {
         string currentPathKey = string.Join("/", currentPath);
 
+        if (currentPathKey.StartsWith("dir0"))
+            currentPathKey = "dir0";
+
+        // Dynamiczne podwajanie katalogów tylko w drzewie dir1
+        if (IsDoublingMode())
+        {
+            int count = (int)Math.Pow(2, doublingLevel + 1);
+            callbacks.AddResponseLine("Directory listing:");
+            callbacks.AddResponseLine("");
+            for (int i = 1; i <= count; i++)
+            {
+                callbacks.AddResponseLine($"  dir{i}/");
+            }
+            callbacks.AddResponseLine("");
+            callbacks.AddResponseLine($"{count} directories, 0 files");
+            return;
+        }
+
+        // Statyczne katalogi z DirectoryInitializer
         if (directories.ContainsKey(currentPathKey))
         {
             var node = directories[currentPathKey];
-            bool hasContent = node.Subdirectories.Count > 0 || node.Files.Count > 0;
-
-            if (hasContent)
-            {
-                callbacks.AddResponseLine("Directory listing:");
-                callbacks.AddResponseLine("");
-
-                // Foldery (białe)
-                foreach (string dir in node.Subdirectories)
-                {
-                    callbacks.AddResponseLine($"  <color=#ffffff>{dir}</color>");
-                }
-
-                // Pliki (turkusowe)
-                foreach (var file in node.Files)
-                {
-                    callbacks.AddResponseLine($"  <color=#00ffff>{file.Key}</color>");
-                }
-
-                callbacks.AddResponseLine("");
-                callbacks.AddResponseLine($"{node.Subdirectories.Count} directories, {node.Files.Count} files");
-            }
-            else
-            {
-                callbacks.AddResponseLine("Directory is empty.");
-            }
+            callbacks.AddResponseLine("Directory listing:");
+            callbacks.AddResponseLine("");
+            foreach (var sub in node.Subdirectories)
+                callbacks.AddResponseLine($"  {sub}/");
+            foreach (var file in node.Files)
+                callbacks.AddResponseLine($"  <color=#00ffff>{file.Key}</color>");
+            callbacks.AddResponseLine("");
+            callbacks.AddResponseLine($"{node.Subdirectories.Count} directories, {node.Files.Count} files");
         }
         else
         {
-            callbacks.AddResponseLine("Directory not found.");
+            callbacks.AddResponseLine("Directory is empty.");
         }
     }
 
@@ -194,10 +182,13 @@ public class Interpreter : MonoBehaviour
         string targetDirectory = parts[1];
         string currentPathKey = string.Join("/", currentPath);
 
+        // Powrót do katalogu nadrzędnego
         if (targetDirectory == "..")
         {
             if (currentPath.Count > 0)
             {
+                if (IsDoublingMode() && doublingLevel > 0)
+                    doublingLevel--;
                 currentPath.RemoveAt(currentPath.Count - 1);
                 UpdateDirectoryPrompt();
                 callbacks.AddResponseLine("Changed to parent directory.");
@@ -209,6 +200,34 @@ public class Interpreter : MonoBehaviour
             return;
         }
 
+        if (targetDirectory == "dir0")
+        {
+            currentPath.Add("dir0");
+            UpdateDirectoryPrompt();
+            callbacks.AddResponseLine("Changed directory to dir0");
+            return;
+        }
+
+        // Dynamiczne podwajanie tylko w drzewie dir1
+        if (IsDoublingMode())
+        {
+            int count = (int)Math.Pow(2, doublingLevel + 1);
+            for (int i = 1; i <= count; i++)
+            {
+                if (targetDirectory == $"dir{i}")
+                {
+                    currentPath.Add(targetDirectory);
+                    doublingLevel++;
+                    UpdateDirectoryPrompt();
+                    callbacks.AddResponseLine($"Changed directory to {targetDirectory}");
+                    return;
+                }
+            }
+            callbacks.AddResponseLine($"Directory '{targetDirectory}' not found.");
+            return;
+        }
+
+        // Statyczne katalogi z DirectoryInitializer
         if (directories.ContainsKey(currentPathKey) &&
             directories[currentPathKey].Subdirectories.Contains(targetDirectory))
         {
@@ -225,12 +244,55 @@ public class Interpreter : MonoBehaviour
     private void ExecutePrintWorkingDirectory()
     {
         if (currentPath.Count == 0)
-        {
             callbacks.AddResponseLine("/");
-        }
         else
-        {
             callbacks.AddResponseLine("/" + string.Join("/", currentPath));
+    }
+
+    private void UpdateDirectoryPrompt()
+    {
+        string pathSuffix = "";
+        if (currentPath.Count > 0)
+        {
+            if (currentPath.Count <= 3)
+            {
+                pathSuffix = "\\" + string.Join("\\", currentPath);
+            }
+            else
+            {
+                string firstFolder = currentPath[0];
+                string lastFolder = currentPath[currentPath.Count - 1];
+                pathSuffix = $"\\{firstFolder}\\...\\{lastFolder}";
+            }
+        }
+
+        callbacks.UpdateDirectoryPath?.Invoke(pathSuffix);
+    }
+
+    private void ExecuteExit()
+    {
+        callbacks.AddResponseLine("Are you sure you want to exit?");
+        callbacks.AddResponseLine("<color=yellow>Warning: Progress will not be saved!</color>");
+        callbacks.AddResponseLine("Type 'yes' to exit or 'no' to cancel.");
+        awaitingExitConfirmation = true;
+    }
+
+    private void ProcessExitConfirmation(string userInput)
+    {
+        switch (userInput)
+        {
+            case "yes":
+            case "y":
+                awaitingExitConfirmation = false;
+                callbacks.StartCoroutine?.Invoke(ExitAnimationCoroutine());
+                break;
+            case "no":
+            case "n":
+                awaitingExitConfirmation = false;
+                break;
+            default:
+                callbacks.AddResponseLine("Please type 'yes' to exit or 'no' to cancel.");
+                break;
         }
     }
 
@@ -266,14 +328,14 @@ public class Interpreter : MonoBehaviour
                 {
                     if ((currentLine + word).Length > 92)
                     {
-                        callbacks.AddResponseLine(currentLine.TrimEnd());
+                        callbacks.AddResponseLine("<i>" + currentLine.TrimEnd() + "</i>");
                         currentLine = "";
                     }
                     currentLine += word + " ";
                 }
 
                 if (!string.IsNullOrEmpty(currentLine))
-                    callbacks.AddResponseLine(currentLine.TrimEnd());
+                    callbacks.AddResponseLine("<i>" + currentLine.TrimEnd() + "</i>");
             }
         }
         else
@@ -282,64 +344,9 @@ public class Interpreter : MonoBehaviour
         }
     }
 
-    // ============================ OTHER ============================
-
-    private void UpdateDirectoryPrompt()
-    {
-        string pathSuffix = "";
-        if (currentPath.Count > 0)
-        {
-            if (currentPath.Count <= 3)
-            {
-                // Show full path if 3 folders or less
-                pathSuffix = "\\" + string.Join("\\", currentPath);
-            }
-            else
-            {
-                // Show first folder + ... + last folder if more than 3 folders
-                string firstFolder = currentPath[0];
-                string lastFolder = currentPath[currentPath.Count - 1];
-                pathSuffix = $"\\{firstFolder}\\...\\{lastFolder}";
-            }
-        }
-        
-        callbacks.UpdateDirectoryPath?.Invoke(pathSuffix);
-    }
-
-    private void ExecuteExit()
-    {
-        callbacks.AddResponseLine("Are you sure you want to exit?");
-        callbacks.AddResponseLine("<color=yellow>Warning: Progress will not be saved!</color>");
-        callbacks.AddResponseLine("Type 'yes' to exit or 'no' to cancel.");
-
-        awaitingExitConfirmation = true;
-    }
-
-    private void ProcessExitConfirmation(string userInput)
-    {
-        switch (userInput)
-        {
-            case "yes":
-            case "y":
-                awaitingExitConfirmation = false;
-                callbacks.StartCoroutine?.Invoke(ExitAnimationCoroutine());
-                break;
-
-            case "no":
-            case "n":
-                awaitingExitConfirmation = false;
-                break;
-
-            default:
-                callbacks.AddResponseLine("Please type 'yes' to exit or 'no' to cancel.");
-                break;
-        }
-    }
-
     private IEnumerator ExitAnimationCoroutine()
     {
         callbacks.SetUserInputLineActive?.Invoke(false);
-
         yield return callbacks.PlayTypewriterEffect("Shutting down DebuggerOS...");
         yield return new WaitForSeconds(0.5f);
         yield return callbacks.PlayTypewriterEffect("Goodbye!");
