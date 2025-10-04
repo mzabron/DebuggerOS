@@ -20,6 +20,8 @@ public class TerminalManager : MonoBehaviour
     private Queue<GameObject> directoryLineQueue = new Queue<GameObject>();
     private TerminalAnimator terminalAnimator;
     private Interpreter interpreter;
+    private string currentDirectoryPath = "";
+    private string basePrompt = "C:\\SYSTEM_32>";
 
     void Start()
     {
@@ -35,6 +37,9 @@ public class TerminalManager : MonoBehaviour
             inputField.characterLimit = characterLimit;
         }
         UpdateScrollState();
+        
+        // Set initial directory text
+        UpdateUserInputLineDirectoryText();
     }
 
     void OnDestroy()
@@ -68,7 +73,8 @@ public class TerminalManager : MonoBehaviour
             ClearScreen = ClearScreen,
             PlayTypewriterEffect = PlayTypewriterEffect,
             StartCoroutine = (coroutine) => StartCoroutine(coroutine),
-            SetUserInputLineActive = SetUserInputLineActive
+            SetUserInputLineActive = SetUserInputLineActive,
+            UpdateDirectoryPath = UpdateDirectoryPath
         };
 
         interpreter.Initialize(callbacks);
@@ -79,7 +85,6 @@ public class TerminalManager : MonoBehaviour
         lastUserInput = userInput;
         inputField.text = "";
 
-
         AddDirectoryLine();
         
         // Process the command through the interpreter
@@ -89,6 +94,29 @@ public class TerminalManager : MonoBehaviour
         inputField.ActivateInputField();
         UpdateScrollState();
         StartCoroutine(ScrollToBottomCoroutine());
+    }
+
+    private void UpdateDirectoryPath(string pathSuffix)
+    {
+        currentDirectoryPath = pathSuffix;
+        UpdateUserInputLineDirectoryText();
+    }
+
+    private void UpdateUserInputLineDirectoryText()
+    {
+        if (userInputLine != null)
+        {
+            TMP_Text[] textComponents = userInputLine.GetComponentsInChildren<TMP_Text>();
+            if (textComponents.Length > 0)
+            {
+                // Update the directory prompt text
+                TMP_Text directoryText = textComponents[0];
+                
+                // Insert the directory path before the last '>' character
+                string promptWithPath = basePrompt.Substring(0, basePrompt.Length - 1) + currentDirectoryPath + ">";
+                directoryText.text = promptWithPath;
+            }
+        }
     }
 
     private void ClearScreen()
@@ -116,6 +144,7 @@ public class TerminalManager : MonoBehaviour
 
         userInputLine = Instantiate(userInputLinePrefab, commandLineContainer.transform);
         RecreateUserInputLine();
+        UpdateUserInputLineDirectoryText(); // Update directory text after recreating
 
         UpdateScrollState();
         StartCoroutine(ScrollToBottomCoroutine());
@@ -146,7 +175,16 @@ public class TerminalManager : MonoBehaviour
         commandLineContainer.GetComponent<RectTransform>().sizeDelta = new Vector2(commandLineContainerSize.x, commandLineContainerSize.y + 30);
         
         GameObject newDirectoryLine = Instantiate(directoryLine, commandLineContainer.transform);
-        newDirectoryLine.GetComponentsInChildren<TMP_Text>()[1].text = lastUserInput;
+        
+        TMP_Text[] textComponents = newDirectoryLine.GetComponentsInChildren<TMP_Text>();
+        if (textComponents.Length > 1)
+        {
+            // Set the directory text for the command line that was just executed
+            // Insert the directory path before the last '>' character
+            string promptWithPath = basePrompt.Substring(0, basePrompt.Length - 1) + currentDirectoryPath + ">";
+            textComponents[0].text = promptWithPath;
+            textComponents[1].text = lastUserInput;
+        }
 
         directoryLineQueue.Enqueue(newDirectoryLine);
     }

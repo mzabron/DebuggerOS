@@ -13,11 +13,14 @@ public class Interpreter : MonoBehaviour
         public System.Func<string, IEnumerator> PlayTypewriterEffect;
         public System.Action<IEnumerator> StartCoroutine;
         public System.Action<bool> SetUserInputLineActive;
+        public System.Action<string> UpdateDirectoryPath;
     }
 
     private InterpreterCallbacks callbacks;
     private Dictionary<string, string> variables = new Dictionary<string, string>();
     private bool awaitingExitConfirmation = false;
+    private List<string> currentPath = new List<string>();
+    private Dictionary<string, List<string>> directories = new Dictionary<string, List<string>>();
 
     public void Initialize(InterpreterCallbacks interpreterCallbacks)
     {
@@ -26,6 +29,17 @@ public class Interpreter : MonoBehaviour
         variables["version"] = "4.2.0";
         variables["user"] = "developer";
         variables["system"] = "DebuggerOS";
+
+        InitializeDirectories();
+    }
+
+    private void InitializeDirectories()
+    {
+        directories[""] = new List<string> { "folder1", "folder2", "folder3" };
+        
+        directories["folder1"] = new List<string>();
+        directories["folder2"] = new List<string>();
+        directories["folder3"] = new List<string>();
     }
 
     public void ProcessCommand(string userInput)
@@ -84,6 +98,14 @@ public class Interpreter : MonoBehaviour
                 ExecuteListDirectory();
                 break;
 
+            case "cd":
+                ExecuteChangeDirectory(parts);
+                break;
+
+            case "pwd":
+                ExecutePrintWorkingDirectory();
+                break;
+
             case "exit":
             case "quit":
                 ExecuteExit();
@@ -107,6 +129,9 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine("  time          - Show current time");
         callbacks.AddResponseLine("  whoami        - Show current user");
         callbacks.AddResponseLine("  ls, dir       - List directory contents");
+        callbacks.AddResponseLine("  cd [dir]      - Change directory");
+        callbacks.AddResponseLine("  cd ..         - Go to parent directory");
+        callbacks.AddResponseLine("  pwd           - Print working directory");
         callbacks.AddResponseLine("  exit, quit    - Exit the terminal");
         callbacks.AddResponseLine("");
     }
@@ -155,15 +180,100 @@ public class Interpreter : MonoBehaviour
 
     private void ExecuteListDirectory()
     {
-        callbacks.AddResponseLine("Directory listing:");
-        callbacks.AddResponseLine("");
-        callbacks.AddResponseLine("  bin/          - System binaries");
-        callbacks.AddResponseLine("  home/         - User directories");
-        callbacks.AddResponseLine("  etc/          - Configuration files");
-        callbacks.AddResponseLine("  var/          - Variable data");
-        callbacks.AddResponseLine("  tmp/          - Temporary files");
-        callbacks.AddResponseLine("");
-        callbacks.AddResponseLine("5 directories, 0 files");
+        string currentPathKey = string.Join("/", currentPath);
+        
+        if (directories.ContainsKey(currentPathKey))
+        {
+            List<string> contents = directories[currentPathKey];
+            
+            if (contents.Count > 0)
+            {
+                callbacks.AddResponseLine("Directory listing:");
+                callbacks.AddResponseLine("");
+                
+                foreach (string item in contents)
+                {
+                    callbacks.AddResponseLine($"  {item}");
+                }
+                
+                callbacks.AddResponseLine("");
+                callbacks.AddResponseLine($"{contents.Count} directories, 0 files");
+            }
+            else
+            {
+                callbacks.AddResponseLine("Directory is empty.");
+            }
+        }
+        else
+        {
+            callbacks.AddResponseLine("Directory not found.");
+        }
+    }
+
+    private void ExecuteChangeDirectory(string[] parts)
+    {
+        if (parts.Length < 2)
+        {
+            callbacks.AddResponseLine("Usage: cd [directory]");
+            callbacks.AddResponseLine("       cd ..  (to go back)");
+            return;
+        }
+
+        string targetDirectory = parts[1];
+
+        if (targetDirectory == "..")
+        {
+            // Go back to parent directory
+            if (currentPath.Count > 0)
+            {
+                currentPath.RemoveAt(currentPath.Count - 1);
+                UpdateDirectoryPrompt();
+                callbacks.AddResponseLine($"Changed to parent directory.");
+            }
+            else
+            {
+                callbacks.AddResponseLine("Already at root directory.");
+            }
+        }
+        else
+        {
+            // Try to enter the specified directory
+            string currentPathKey = string.Join("/", currentPath);
+            
+            if (directories.ContainsKey(currentPathKey) && directories[currentPathKey].Contains(targetDirectory))
+            {
+                currentPath.Add(targetDirectory);
+                UpdateDirectoryPrompt();
+                callbacks.AddResponseLine($"Changed directory to {targetDirectory}");
+            }
+            else
+            {
+                callbacks.AddResponseLine($"Directory '{targetDirectory}' not found.");
+            }
+        }
+    }
+
+    private void ExecutePrintWorkingDirectory()
+    {
+        if (currentPath.Count == 0)
+        {
+            callbacks.AddResponseLine("/");
+        }
+        else
+        {
+            callbacks.AddResponseLine("/" + string.Join("/", currentPath));
+        }
+    }
+
+    private void UpdateDirectoryPrompt()
+    {
+        string pathSuffix = "";
+        if (currentPath.Count > 0)
+        {
+            pathSuffix = "\\" + string.Join("\\", currentPath);
+        }
+        
+        callbacks.UpdateDirectoryPath?.Invoke(pathSuffix);
     }
 
     private void ExecuteExit()
