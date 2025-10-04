@@ -20,7 +20,10 @@ public class Interpreter : MonoBehaviour
     private Dictionary<string, string> variables = new Dictionary<string, string>();
     private bool awaitingExitConfirmation = false;
     private List<string> currentPath = new List<string>();
-    private Dictionary<string, List<string>> directories = new Dictionary<string, List<string>>();
+
+    private Dictionary<string, DirectoryInitializer.DirectoryNode> directories = new Dictionary<string, DirectoryInitializer.DirectoryNode>();
+
+    // ============================ INIT ============================
 
     public void Initialize(InterpreterCallbacks interpreterCallbacks)
     {
@@ -30,92 +33,50 @@ public class Interpreter : MonoBehaviour
         variables["user"] = "developer";
         variables["system"] = "DebuggerOS";
 
-        InitializeDirectories();
+        // Pobranie struktury katalogów z zewnętrznego pliku
+        directories = DirectoryInitializer.GetDirectories();
     }
 
-    private void InitializeDirectories()
-    {
-        directories[""] = new List<string> { "folder1", "folder2", "folder3" };
-        
-        directories["folder1"] = new List<string>();
-        directories["folder2"] = new List<string>();
-        directories["folder3"] = new List<string>();
-    }
+    // ============================ MAIN PROCESS ============================
 
     public void ProcessCommand(string userInput)
     {
         if (string.IsNullOrWhiteSpace(userInput))
-        {
             return;
-        }
 
-        // Check if we're awaiting exit confirmation
         if (awaitingExitConfirmation)
         {
             ProcessExitConfirmation(userInput.Trim().ToLower());
             return;
         }
 
-        // Convert to lowercase and trim for case-insensitive commands
-        string command = userInput.Trim().ToLower();
+        string command = userInput.Trim();
         string[] parts = command.Split(' ');
-        string mainCommand = parts[0];
+        string mainCommand = parts[0].ToLower();
 
         switch (mainCommand)
         {
-            case "help":
-                ExecuteHelp();
-                break;
-
+            case "help": ExecuteHelp(); break;
             case "clear":
-            case "cls":
-                ExecuteClear();
-                break;
-
-            case "echo":
-                ExecuteEcho(userInput);
-                break;
-
+            case "cls": ExecuteClear(); break;
+            case "echo": ExecuteEcho(userInput); break;
             case "version":
-            case "ver":
-                ExecuteVersion();
-                break;
-
-            case "date":
-                ExecuteDate();
-                break;
-
-            case "time":
-                ExecuteTime();
-                break;
-
-            case "whoami":
-                ExecuteWhoAmI();
-                break;
-
+            case "ver": ExecuteVersion(); break;
+            case "date": ExecuteDate(); break;
+            case "time": ExecuteTime(); break;
+            case "whoami": ExecuteWhoAmI(); break;
             case "ls":
-            case "dir":
-                ExecuteListDirectory();
-                break;
-
-            case "cd":
-                ExecuteChangeDirectory(parts);
-                break;
-
-            case "pwd":
-                ExecutePrintWorkingDirectory();
-                break;
-
+            case "dir": ExecuteListDirectory(); break;
+            case "cd": ExecuteChangeDirectory(parts); break;
+            case "pwd": ExecutePrintWorkingDirectory(); break;
+            case "cat": ExecuteCat(parts); break;
             case "exit":
-            case "quit":
-                ExecuteExit();
-                break;
-
-            default:
-                ExecuteUnknownCommand(userInput);
-                break;
+            case "quit": ExecuteExit(); break;
+            default: ExecuteUnknownCommand(userInput); break;
         }
     }
+
+    // ============================ COMMANDS ============================
 
     private void ExecuteHelp()
     {
@@ -132,6 +93,7 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine("  cd [dir]      - Change directory");
         callbacks.AddResponseLine("  cd ..         - Go to parent directory");
         callbacks.AddResponseLine("  pwd           - Print working directory");
+        callbacks.AddResponseLine("  cat [file]    - Show contents of a file");
         callbacks.AddResponseLine("  exit, quit    - Exit the terminal");
         callbacks.AddResponseLine("");
     }
@@ -181,23 +143,31 @@ public class Interpreter : MonoBehaviour
     private void ExecuteListDirectory()
     {
         string currentPathKey = string.Join("/", currentPath);
-        
+
         if (directories.ContainsKey(currentPathKey))
         {
-            List<string> contents = directories[currentPathKey];
-            
-            if (contents.Count > 0)
+            var node = directories[currentPathKey];
+            bool hasContent = node.Subdirectories.Count > 0 || node.Files.Count > 0;
+
+            if (hasContent)
             {
                 callbacks.AddResponseLine("Directory listing:");
                 callbacks.AddResponseLine("");
-                
-                foreach (string item in contents)
+
+                // Foldery (białe)
+                foreach (string dir in node.Subdirectories)
                 {
-                    callbacks.AddResponseLine($"  {item}");
+                    callbacks.AddResponseLine($"  <color=#ffffff>{dir}</color>");
                 }
-                
+
+                // Pliki (turkusowe)
+                foreach (var file in node.Files)
+                {
+                    callbacks.AddResponseLine($"  <color=#00ffff>{file.Key}</color>");
+                }
+
                 callbacks.AddResponseLine("");
-                callbacks.AddResponseLine($"{contents.Count} directories, 0 files");
+                callbacks.AddResponseLine($"{node.Subdirectories.Count} directories, {node.Files.Count} files");
             }
             else
             {
@@ -220,36 +190,33 @@ public class Interpreter : MonoBehaviour
         }
 
         string targetDirectory = parts[1];
+        string currentPathKey = string.Join("/", currentPath);
 
         if (targetDirectory == "..")
         {
-            // Go back to parent directory
             if (currentPath.Count > 0)
             {
                 currentPath.RemoveAt(currentPath.Count - 1);
                 UpdateDirectoryPrompt();
-                callbacks.AddResponseLine($"Changed to parent directory.");
+                callbacks.AddResponseLine("Changed to parent directory.");
             }
             else
             {
                 callbacks.AddResponseLine("Already at root directory.");
             }
+            return;
+        }
+
+        if (directories.ContainsKey(currentPathKey) &&
+            directories[currentPathKey].Subdirectories.Contains(targetDirectory))
+        {
+            currentPath.Add(targetDirectory);
+            UpdateDirectoryPrompt();
+            callbacks.AddResponseLine($"Changed directory to {targetDirectory}");
         }
         else
         {
-            // Try to enter the specified directory
-            string currentPathKey = string.Join("/", currentPath);
-            
-            if (directories.ContainsKey(currentPathKey) && directories[currentPathKey].Contains(targetDirectory))
-            {
-                currentPath.Add(targetDirectory);
-                UpdateDirectoryPrompt();
-                callbacks.AddResponseLine($"Changed directory to {targetDirectory}");
-            }
-            else
-            {
-                callbacks.AddResponseLine($"Directory '{targetDirectory}' not found.");
-            }
+            callbacks.AddResponseLine($"Directory '{targetDirectory}' not found.");
         }
     }
 
@@ -265,6 +232,66 @@ public class Interpreter : MonoBehaviour
         }
     }
 
+    private void ExecuteCat(string[] parts)
+    {
+        if (parts.Length < 2)
+        {
+            callbacks.AddResponseLine("Usage: cat [file]");
+            return;
+        }
+
+        string fileName = parts[1];
+        string currentPathKey = string.Join("/", currentPath);
+
+        if (!directories.ContainsKey(currentPathKey))
+        {
+            callbacks.AddResponseLine("Directory not found.");
+            return;
+        }
+
+        var node = directories[currentPathKey];
+        if (!node.Files.ContainsKey(fileName))
+        {
+            callbacks.AddResponseLine($"File '{fileName}' not found.");
+            return;
+        }
+
+        string content = node.Files[fileName];
+        string[] lines = content.Split(new[] { "\n" }, StringSplitOptions.None);
+
+        foreach (string line in lines)
+        {
+            if (line.Length == 0)
+            {
+                callbacks.AddResponseLine("");
+                continue;
+            }
+
+            string[] words = line.Split(' ');
+            string currentLine = "";
+
+            foreach (string word in words)
+            {
+                if ((currentLine.Length + word.Length + 1) > 92)
+                {
+                    callbacks.AddResponseLine(currentLine);
+                    currentLine = word;
+                }
+                else
+                {
+                    if (currentLine.Length > 0)
+                        currentLine += " ";
+                    currentLine += word;
+                }
+            }
+
+            if (currentLine.Length > 0)
+                callbacks.AddResponseLine(currentLine);
+        }
+    }
+
+
+
     private void UpdateDirectoryPrompt()
     {
         string pathSuffix = "";
@@ -272,7 +299,7 @@ public class Interpreter : MonoBehaviour
         {
             pathSuffix = "\\" + string.Join("\\", currentPath);
         }
-        
+
         callbacks.UpdateDirectoryPath?.Invoke(pathSuffix);
     }
 
@@ -282,7 +309,6 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine("<color=yellow>Warning: Progress will not be saved!</color>");
         callbacks.AddResponseLine("Type 'yes' to exit or 'no' to cancel.");
 
-        // Set state to await confirmation
         awaitingExitConfirmation = true;
     }
 
@@ -303,27 +329,24 @@ public class Interpreter : MonoBehaviour
 
             default:
                 callbacks.AddResponseLine("Please type 'yes' to exit or 'no' to cancel.");
-                // Keep awaitingExitConfirmation = true to continue waiting
                 break;
         }
     }
 
     private IEnumerator ExitAnimationCoroutine()
     {
-
         callbacks.SetUserInputLineActive?.Invoke(false);
-        
+
         yield return callbacks.PlayTypewriterEffect("Shutting down DebuggerOS...");
-        
         yield return new WaitForSeconds(0.5f);
         yield return callbacks.PlayTypewriterEffect("Goodbye!");
         yield return new WaitForSeconds(1f);
 
-        #if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-        #else
-            Application.Quit();
-        #endif
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 
     private void ExecuteUnknownCommand(string command)
