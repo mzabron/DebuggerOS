@@ -41,6 +41,7 @@ public class TerminalAnimator : MonoBehaviour
         GameObject loadingLine = callbacks.AddResponseLine("");
         TMP_Text loadingText = loadingLine.GetComponentInChildren<TMP_Text>();
 
+        /*
         // Animate dots 3 times
         for (int cycle = 0; cycle < 3; cycle++)
         {
@@ -55,6 +56,7 @@ public class TerminalAnimator : MonoBehaviour
             loadingText.text = "";
             yield return new WaitForSeconds(0.3f);
         }
+        */
 
         // Remove the loading line
         callbacks.RemoveSpecificLine(loadingLine);

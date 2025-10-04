@@ -37,9 +37,19 @@ public class Interpreter : MonoBehaviour
     {
         directories[""] = new List<string> { "folder1", "folder2", "folder3" };
         
-        directories["folder1"] = new List<string>();
-        directories["folder2"] = new List<string>();
-        directories["folder3"] = new List<string>();
+        directories["folder1"] = new List<string> { "folder_1", "2", "3" };
+        directories["folder2"] = new List<string> { "1", "2", "3" };
+        directories["folder3"] = new List<string> { "1", "2", "3" };
+        
+        // Second level subdirectories
+        directories["folder1/folder_1"] = new List<string> { "folder_a", "B", "C" };
+        
+        // Third level subdirectories (empty for now)
+        directories["folder1/folder_1/folder_a"] = new List<string> { "folder123" };
+
+        directories["folder1/folder_1/folder_a/folder123"] = new List<string>();
+
+
     }
 
     public void ProcessCommand(string userInput)
@@ -270,7 +280,18 @@ public class Interpreter : MonoBehaviour
         string pathSuffix = "";
         if (currentPath.Count > 0)
         {
-            pathSuffix = "\\" + string.Join("\\", currentPath);
+            if (currentPath.Count <= 3)
+            {
+                // Show full path if 3 folders or less
+                pathSuffix = "\\" + string.Join("\\", currentPath);
+            }
+            else
+            {
+                // Show first folder + ... + last folder if more than 3 folders
+                string firstFolder = currentPath[0];
+                string lastFolder = currentPath[currentPath.Count - 1];
+                pathSuffix = $"\\{firstFolder}\\...\\{lastFolder}";
+            }
         }
         
         callbacks.UpdateDirectoryPath?.Invoke(pathSuffix);

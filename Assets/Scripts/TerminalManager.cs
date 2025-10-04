@@ -15,7 +15,7 @@ public class TerminalManager : MonoBehaviour
     public GameObject userInputLinePrefab;
 
     private string lastUserInput = "";
-    private int characterLimit = 78;
+    private int characterLimit = 40;
     private int maxDirectoryLines = 200;
     private Queue<GameObject> directoryLineQueue = new Queue<GameObject>();
     private TerminalAnimator terminalAnimator;
@@ -139,12 +139,38 @@ public class TerminalManager : MonoBehaviour
             Destroy(originalUserInputLine);
         }
 
+
+        StartCoroutine(ClearScreenCoroutine());
+    }
+
+    private IEnumerator ClearScreenCoroutine()
+    {
+        // Wait for objects to be properly destroyed
+        yield return null;
+        
+        // Force layout rebuild
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(commandLineContainer.GetComponent<RectTransform>());
+        
+        // Reset container size
         Vector2 commandLineContainerSize = commandLineContainer.GetComponent<RectTransform>().sizeDelta;
         commandLineContainer.GetComponent<RectTransform>().sizeDelta = new Vector2(commandLineContainerSize.x, 45);
-
+        
+        // Wait another frame to ensure layout is properly updated
+        yield return null;
+        
+        // Now instantiate the new userInputLine
         userInputLine = Instantiate(userInputLinePrefab, commandLineContainer.transform);
+        
+        // Ensure it's positioned correctly
+        userInputLine.transform.SetAsLastSibling();
+        
+        // Force another layout update
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(commandLineContainer.GetComponent<RectTransform>());
+        
         RecreateUserInputLine();
-        UpdateUserInputLineDirectoryText(); // Update directory text after recreating
+        UpdateUserInputLineDirectoryText();
 
         UpdateScrollState();
         StartCoroutine(ScrollToBottomCoroutine());
