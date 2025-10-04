@@ -331,6 +331,13 @@ public class Interpreter : MonoBehaviour
         if (currentPathKey.StartsWith("dir0"))
             currentPathKey = "dir0";
 
+        // Special handling for shutdown.c file
+        if (fileName == "shutdown.c")
+        {
+            callbacks.AddResponseLine("You cannot display content of that file");
+            return;
+        }
+
         if (!directories.ContainsKey(currentPathKey))
         {
             callbacks.AddResponseLine("Directory not found.");

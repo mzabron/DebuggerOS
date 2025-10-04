@@ -112,6 +112,12 @@ public class TerminalManager : MonoBehaviour
                 {
                     userInputLine.transform.SetAsLastSibling();
                 }
+            },
+            ActivateInputField = () => {
+                if (inputField != null)
+                {
+                    inputField.ActivateInputField();
+                }
             }
         };
 
@@ -150,6 +156,7 @@ public class TerminalManager : MonoBehaviour
                     // Directory is still locked, require password
                     AddResponseLine("Enter the password:");
                     awaitingPassword = true;
+                    SetPasswordMode(true); // Enable password masking
                 }
             }
             else
@@ -182,9 +189,28 @@ public class TerminalManager : MonoBehaviour
     {
         bool passwordCorrect = securedDirectoryManager.ProcessPasswordInput(password);
         awaitingPassword = false;
+        SetPasswordMode(false); // Disable password masking after password input
         
         // If password was incorrect, the SecuredDirectoryManager already handled the response
         // If password was correct, it started the confirmation sequence
+    }
+
+    private void SetPasswordMode(bool enabled)
+    {
+        if (inputField != null)
+        {
+            if (enabled)
+            {
+                inputField.inputType = TMP_InputField.InputType.Password;
+            }
+            else
+            {
+                inputField.inputType = TMP_InputField.InputType.Standard;
+            }
+            
+            // Force update the input field
+            inputField.ForceLabelUpdate();
+        }
     }
 
     private void UpdateDirectoryPath(string pathSuffix)
@@ -232,6 +258,8 @@ public class TerminalManager : MonoBehaviour
 
         // Reset secured directory state when clearing screen
         securedDirectoryManager.CancelConfirmation();
+        awaitingPassword = false; // Reset password state
+        SetPasswordMode(false); // Ensure password mode is disabled
 
         StartCoroutine(ClearScreenCoroutine());
     }
@@ -278,6 +306,7 @@ public class TerminalManager : MonoBehaviour
             {
                 inputField.onSubmit.AddListener(OnInputSubmit);
                 inputField.characterLimit = characterLimit;
+                SetPasswordMode(false); // Ensure new input field starts in normal mode
                 inputField.ActivateInputField();
             }
         }
@@ -302,7 +331,16 @@ public class TerminalManager : MonoBehaviour
             // Insert the directory path before the last '>' character
             string promptWithPath = basePrompt.Substring(0, basePrompt.Length - 1) + currentDirectoryPath + ">";
             textComponents[0].text = promptWithPath;
-            textComponents[1].text = lastUserInput;
+            
+            // Display asterisks if it was a password input
+            if (awaitingPassword)
+            {
+                textComponents[1].text = new string('*', lastUserInput.Length);
+            }
+            else
+            {
+                textComponents[1].text = lastUserInput;
+            }
         }
 
         directoryLineQueue.Enqueue(newDirectoryLine);

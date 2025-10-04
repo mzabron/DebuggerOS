@@ -781,6 +781,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3735badca6c9e79468b958ac4b17f38c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerminalAnimator
+  glitchIntensity: 0.5
+  glitchFrequency: 0.1
 --- !u!1 &1518898242
 GameObject:
   m_ObjectHideFlags: 0
