@@ -17,7 +17,7 @@ public static class DirectoryInitializer
         // ROOT "/"
         directories[""] = new DirectoryNode
         {
-            Subdirectories = new List<string> { "folder1", "folder2" },
+            Subdirectories = new List<string> { "folder1", "folder2", "secured" },
             Files = new Dictionary<string, string> { { "readme.txt", "Welcome to DebuggerOS!\nThis is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file.This is the root readme file." } }
         };
 
@@ -37,6 +37,12 @@ public static class DirectoryInitializer
         {
             Subdirectories = new List<string>(),
             Files = new Dictionary<string, string> { { "data.txt", "Data stored in folder2." } }
+        };
+
+        directories["secured"] = new DirectoryNode
+        {
+            Subdirectories = new List<string>(),
+            Files = new Dictionary<string, string>()
         };
 
         return directories;
