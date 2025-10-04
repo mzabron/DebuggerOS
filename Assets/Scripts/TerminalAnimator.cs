@@ -40,7 +40,7 @@ public class TerminalAnimator : MonoBehaviour
         // Loading animation with dots
         GameObject loadingLine = callbacks.AddResponseLine("");
         TMP_Text loadingText = loadingLine.GetComponentInChildren<TMP_Text>();
-
+        /*
         // Animate dots 3 times
         // for (int cycle = 0; cycle < 3; cycle++)
         // {

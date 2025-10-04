@@ -21,6 +21,10 @@ public class Interpreter : MonoBehaviour
     private bool awaitingExitConfirmation = false;
     private List<string> currentPath = new List<string>();
 
+    private Dictionary<string, DirectoryInitializer.DirectoryNode> directories = new Dictionary<string, DirectoryInitializer.DirectoryNode>();
+
+    // ============================ INIT ============================
+
     public void Initialize(InterpreterCallbacks interpreterCallbacks)
     {
         callbacks = interpreterCallbacks;
@@ -29,7 +33,8 @@ public class Interpreter : MonoBehaviour
         variables["user"] = "developer";
         variables["system"] = "DebuggerOS";
 
-        InitializeDirectories();
+        // Pobranie struktury katalogów z DirectoryInitializer.cs
+        directories = DirectoryInitializer.GetDirectories();
     }
 
     // ============================ MAIN PROCESS ============================
@@ -45,64 +50,29 @@ public class Interpreter : MonoBehaviour
             return;
         }
 
-        // Convert to lowercase and trim for case-insensitive commands
-        string command = userInput.Trim().ToLower();
+        string command = userInput.Trim();
         string[] parts = command.Split(' ');
-        string mainCommand = parts[0];
+        string mainCommand = parts[0].ToLower();
 
         switch (mainCommand)
         {
-            case "help":
-                ExecuteHelp();
-                break;
-
+            case "help": ExecuteHelp(); break;
             case "clear":
-            case "cls":
-                ExecuteClear();
-                break;
-
-            case "echo":
-                ExecuteEcho(userInput);
-                break;
-
+            case "cls": ExecuteClear(); break;
+            case "echo": ExecuteEcho(userInput); break;
             case "version":
-            case "ver":
-                ExecuteVersion();
-                break;
-
-            case "date":
-                ExecuteDate();
-                break;
-
-            case "time":
-                ExecuteTime();
-                break;
-
-            case "whoami":
-                ExecuteWhoAmI();
-                break;
-
+            case "ver": ExecuteVersion(); break;
+            case "date": ExecuteDate(); break;
+            case "time": ExecuteTime(); break;
+            case "whoami": ExecuteWhoAmI(); break;
             case "ls":
-            case "dir":
-                ExecuteListDirectory();
-                break;
-
-            case "cd":
-                ExecuteChangeDirectory(parts);
-                break;
-
-            case "pwd":
-                ExecutePrintWorkingDirectory();
-                break;
-
+            case "dir": ExecuteListDirectory(); break;
+            case "cd": ExecuteChangeDirectory(parts); break;
+            case "pwd": ExecutePrintWorkingDirectory(); break;
+            case "cat": ExecuteCat(parts); break;
             case "exit":
-            case "quit":
-                ExecuteExit();
-                break;
-
-            default:
-                ExecuteUnknownCommand(userInput);
-                break;
+            case "quit": ExecuteExit(); break;
+            default: ExecuteUnknownCommand(userInput); break;
         }
     }
 
@@ -123,6 +93,7 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine("  cd [dir]      - Change directory");
         callbacks.AddResponseLine("  cd ..         - Go to parent directory");
         callbacks.AddResponseLine("  pwd           - Print working directory");
+        callbacks.AddResponseLine("  cat [file]    - Show contents of a file");
         callbacks.AddResponseLine("  exit, quit    - Exit the terminal");
         callbacks.AddResponseLine("");
     }
@@ -169,26 +140,36 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine($"{windowsUsername}");
     }
 
+    // ============================ DIRECTORY COMMANDS ============================
+
     private void ExecuteListDirectory()
     {
         string currentPathKey = string.Join("/", currentPath);
 
         if (directories.ContainsKey(currentPathKey))
         {
-            List<string> contents = directories[currentPathKey];
-            
-            if (contents.Count > 0)
+            var node = directories[currentPathKey];
+            bool hasContent = node.Subdirectories.Count > 0 || node.Files.Count > 0;
+
+            if (hasContent)
             {
                 callbacks.AddResponseLine("Directory listing:");
                 callbacks.AddResponseLine("");
-                
-                foreach (string item in contents)
+
+                // Foldery (białe)
+                foreach (string dir in node.Subdirectories)
                 {
-                    callbacks.AddResponseLine($"  {item}");
+                    callbacks.AddResponseLine($"  <color=#ffffff>{dir}</color>");
+                }
+
+                // Pliki (turkusowe)
+                foreach (var file in node.Files)
+                {
+                    callbacks.AddResponseLine($"  <color=#00ffff>{file.Key}</color>");
                 }
 
                 callbacks.AddResponseLine("");
-                callbacks.AddResponseLine($"{contents.Count} directories, 0 files");
+                callbacks.AddResponseLine($"{node.Subdirectories.Count} directories, {node.Files.Count} files");
             }
             else
             {
@@ -211,6 +192,7 @@ public class Interpreter : MonoBehaviour
         }
 
         string targetDirectory = parts[1];
+        string currentPathKey = string.Join("/", currentPath);
 
         if (targetDirectory == "..")
         {
@@ -218,28 +200,25 @@ public class Interpreter : MonoBehaviour
             {
                 currentPath.RemoveAt(currentPath.Count - 1);
                 UpdateDirectoryPrompt();
-                callbacks.AddResponseLine($"Changed to parent directory.");
+                callbacks.AddResponseLine("Changed to parent directory.");
             }
             else
             {
                 callbacks.AddResponseLine("Already at root directory.");
             }
+            return;
+        }
+
+        if (directories.ContainsKey(currentPathKey) &&
+            directories[currentPathKey].Subdirectories.Contains(targetDirectory))
+        {
+            currentPath.Add(targetDirectory);
+            UpdateDirectoryPrompt();
+            callbacks.AddResponseLine($"Changed directory to {targetDirectory}");
         }
         else
         {
-            // Try to enter the specified directory
-            string currentPathKey = string.Join("/", currentPath);
-            
-            if (directories.ContainsKey(currentPathKey) && directories[currentPathKey].Contains(targetDirectory))
-            {
-                currentPath.Add(targetDirectory);
-                UpdateDirectoryPrompt();
-                callbacks.AddResponseLine($"Changed directory to {targetDirectory}");
-            }
-            else
-            {
-                callbacks.AddResponseLine($"Directory '{targetDirectory}' not found.");
-            }
+            callbacks.AddResponseLine($"Directory '{targetDirectory}' not found.");
         }
     }
 
@@ -255,7 +234,55 @@ public class Interpreter : MonoBehaviour
         }
     }
 
+    private void ExecuteCat(string[] parts)
+    {
+        if (parts.Length < 2)
+        {
+            callbacks.AddResponseLine("Usage: cat [file]");
+            return;
+        }
 
+        string fileName = parts[1];
+        string currentPathKey = string.Join("/", currentPath);
+
+        if (!directories.ContainsKey(currentPathKey))
+        {
+            callbacks.AddResponseLine("Directory not found.");
+            return;
+        }
+
+        var node = directories[currentPathKey];
+        if (node.Files.ContainsKey(fileName))
+        {
+            string content = node.Files[fileName];
+            string[] lines = content.Split('\n');
+
+            foreach (string line in lines)
+            {
+                string[] words = line.Split(' ');
+                string currentLine = "";
+
+                foreach (string word in words)
+                {
+                    if ((currentLine + word).Length > 92)
+                    {
+                        callbacks.AddResponseLine(currentLine.TrimEnd());
+                        currentLine = "";
+                    }
+                    currentLine += word + " ";
+                }
+
+                if (!string.IsNullOrEmpty(currentLine))
+                    callbacks.AddResponseLine(currentLine.TrimEnd());
+            }
+        }
+        else
+        {
+            callbacks.AddResponseLine($"File '{fileName}' not found.");
+        }
+    }
+
+    // ============================ OTHER ============================
 
     private void UpdateDirectoryPrompt()
     {
