@@ -20,7 +20,6 @@ public class Interpreter : MonoBehaviour
     private Dictionary<string, string> variables = new Dictionary<string, string>();
     private bool awaitingExitConfirmation = false;
     private List<string> currentPath = new List<string>();
-    private Dictionary<string, List<string>> directories = new Dictionary<string, List<string>>();
 
     public void Initialize(InterpreterCallbacks interpreterCallbacks)
     {
@@ -33,33 +32,13 @@ public class Interpreter : MonoBehaviour
         InitializeDirectories();
     }
 
-    private void InitializeDirectories()
-    {
-        directories[""] = new List<string> { "folder1", "folder2", "folder3" };
-        
-        directories["folder1"] = new List<string> { "folder_1", "2", "3" };
-        directories["folder2"] = new List<string> { "1", "2", "3" };
-        directories["folder3"] = new List<string> { "1", "2", "3" };
-        
-        // Second level subdirectories
-        directories["folder1/folder_1"] = new List<string> { "folder_a", "B", "C" };
-        
-        // Third level subdirectories (empty for now)
-        directories["folder1/folder_1/folder_a"] = new List<string> { "folder123" };
-
-        directories["folder1/folder_1/folder_a/folder123"] = new List<string>();
-
-
-    }
+    // ============================ MAIN PROCESS ============================
 
     public void ProcessCommand(string userInput)
     {
         if (string.IsNullOrWhiteSpace(userInput))
-        {
             return;
-        }
 
-        // Check if we're awaiting exit confirmation
         if (awaitingExitConfirmation)
         {
             ProcessExitConfirmation(userInput.Trim().ToLower());
@@ -127,6 +106,8 @@ public class Interpreter : MonoBehaviour
         }
     }
 
+    // ============================ COMMANDS ============================
+
     private void ExecuteHelp()
     {
         callbacks.AddResponseLine("Available commands:");
@@ -191,7 +172,7 @@ public class Interpreter : MonoBehaviour
     private void ExecuteListDirectory()
     {
         string currentPathKey = string.Join("/", currentPath);
-        
+
         if (directories.ContainsKey(currentPathKey))
         {
             List<string> contents = directories[currentPathKey];
@@ -205,7 +186,7 @@ public class Interpreter : MonoBehaviour
                 {
                     callbacks.AddResponseLine($"  {item}");
                 }
-                
+
                 callbacks.AddResponseLine("");
                 callbacks.AddResponseLine($"{contents.Count} directories, 0 files");
             }
@@ -233,7 +214,6 @@ public class Interpreter : MonoBehaviour
 
         if (targetDirectory == "..")
         {
-            // Go back to parent directory
             if (currentPath.Count > 0)
             {
                 currentPath.RemoveAt(currentPath.Count - 1);
@@ -275,6 +255,8 @@ public class Interpreter : MonoBehaviour
         }
     }
 
+
+
     private void UpdateDirectoryPrompt()
     {
         string pathSuffix = "";
@@ -303,7 +285,6 @@ public class Interpreter : MonoBehaviour
         callbacks.AddResponseLine("<color=yellow>Warning: Progress will not be saved!</color>");
         callbacks.AddResponseLine("Type 'yes' to exit or 'no' to cancel.");
 
-        // Set state to await confirmation
         awaitingExitConfirmation = true;
     }
 
@@ -324,27 +305,24 @@ public class Interpreter : MonoBehaviour
 
             default:
                 callbacks.AddResponseLine("Please type 'yes' to exit or 'no' to cancel.");
-                // Keep awaitingExitConfirmation = true to continue waiting
                 break;
         }
     }
 
     private IEnumerator ExitAnimationCoroutine()
     {
-
         callbacks.SetUserInputLineActive?.Invoke(false);
-        
+
         yield return callbacks.PlayTypewriterEffect("Shutting down DebuggerOS...");
-        
         yield return new WaitForSeconds(0.5f);
         yield return callbacks.PlayTypewriterEffect("Goodbye!");
         yield return new WaitForSeconds(1f);
 
-        #if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-        #else
-            Application.Quit();
-        #endif
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 
     private void ExecuteUnknownCommand(string command)
