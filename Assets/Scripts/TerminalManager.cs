@@ -20,13 +20,18 @@ public class TerminalManager : MonoBehaviour
     private Queue<GameObject> directoryLineQueue = new Queue<GameObject>();
     private TerminalAnimator terminalAnimator;
     private Interpreter interpreter;
+    private SecuredDirectoryManager securedDirectoryManager;
     private string currentDirectoryPath = "";
     private string basePrompt = "C:\\SYSTEM_32>";
+    
+    // Password protection fields
+    private bool awaitingPassword = false;
 
     void Start()
     {
         InitializeAnimator();
         InitializeInterpreter();
+        InitializeSecuredDirectoryManager();
         
         userInputLine.SetActive(false);
         StartCoroutine(terminalAnimator.PlayWelcomeBannerAnimation(userInputLine));
@@ -49,6 +54,7 @@ public class TerminalManager : MonoBehaviour
             inputField.onSubmit.RemoveListener(OnInputSubmit);
         }
     }
+
     private void InitializeAnimator()
     {
         terminalAnimator = GetComponent<TerminalAnimator>();
@@ -80,6 +86,38 @@ public class TerminalManager : MonoBehaviour
         interpreter.Initialize(callbacks);
     }
 
+    private void InitializeSecuredDirectoryManager()
+    {
+        securedDirectoryManager = GetComponent<SecuredDirectoryManager>();
+        if (securedDirectoryManager == null)
+        {
+            securedDirectoryManager = gameObject.AddComponent<SecuredDirectoryManager>();
+        }
+
+        var callbacks = new SecuredDirectoryManager.SecuredDirectoryCallbacks
+        {
+            AddResponseLine = AddResponseLine,
+            ProcessCommand = (command) => interpreter.ProcessCommand(command),
+            PlayTypewriterEffect = PlayTypewriterEffect,
+            PlayGlitchTypewriterEffect = (text) => terminalAnimator.GlitchTypewriterEffect(text),
+            PlayScreenGlitchEffect = (duration) => terminalAnimator.ScreenGlitchEffect(duration),
+            StartCoroutine = (coroutine) => StartCoroutine(coroutine),
+            SetUserInputLineActive = SetUserInputLineActive,
+            UpdateScrollState = () => {
+                UpdateScrollState();
+                StartCoroutine(ScrollToBottomCoroutine());
+            },
+            SetUserInputLineAsLastSibling = () => {
+                if (userInputLine != null)
+                {
+                    userInputLine.transform.SetAsLastSibling();
+                }
+            }
+        };
+
+        securedDirectoryManager.Initialize(callbacks);
+    }
+
     private void OnInputSubmit(string userInput)
     {
         lastUserInput = userInput;
@@ -87,13 +125,66 @@ public class TerminalManager : MonoBehaviour
 
         AddDirectoryLine();
         
-        // Process the command through the interpreter
-        interpreter.ProcessCommand(lastUserInput);
+        // Check current state and process accordingly
+        if (awaitingPassword)
+        {
+            ProcessPasswordInput(lastUserInput);
+        }
+        else if (securedDirectoryManager.IsAwaitingConfirmation())
+        {
+            securedDirectoryManager.ProcessConfirmationInput(lastUserInput);
+        }
+        else
+        {
+            // Check if user is trying to access secured directory
+            if (IsSecuredDirectoryCommand(lastUserInput))
+            {
+                // Check if secured directory is already unlocked
+                if (securedDirectoryManager.IsSecuredDirectoryUnlocked())
+                {
+                    // Directory is unlocked, allow normal access
+                    interpreter.ProcessCommand(lastUserInput);
+                }
+                else
+                {
+                    // Directory is still locked, require password
+                    AddResponseLine("Enter the password:");
+                    awaitingPassword = true;
+                }
+            }
+            else
+            {
+                // Process the command through the interpreter
+                interpreter.ProcessCommand(lastUserInput);
+            }
+        }
 
         userInputLine.transform.SetAsLastSibling();
         inputField.ActivateInputField();
         UpdateScrollState();
         StartCoroutine(ScrollToBottomCoroutine());
+    }
+
+    private bool IsSecuredDirectoryCommand(string input)
+    {
+        string[] parts = input.Trim().Split(' ');
+        if (parts.Length >= 2)
+        {
+            string command = parts[0].ToLower();
+            string directory = parts[1].ToLower();
+            
+            return (command == "cd") && (directory == "secured");
+        }
+        return false;
+    }
+
+    private void ProcessPasswordInput(string password)
+    {
+        bool passwordCorrect = securedDirectoryManager.ProcessPasswordInput(password);
+        awaitingPassword = false;
+        
+        // If password was incorrect, the SecuredDirectoryManager already handled the response
+        // If password was correct, it started the confirmation sequence
     }
 
     private void UpdateDirectoryPath(string pathSuffix)
@@ -139,6 +230,8 @@ public class TerminalManager : MonoBehaviour
             Destroy(originalUserInputLine);
         }
 
+        // Reset secured directory state when clearing screen
+        securedDirectoryManager.CancelConfirmation();
 
         StartCoroutine(ClearScreenCoroutine());
     }
