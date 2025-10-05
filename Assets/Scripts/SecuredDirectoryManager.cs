@@ -16,13 +16,16 @@ public class SecuredDirectoryManager : MonoBehaviour
         public System.Action<bool> SetUserInputLineActive;
         public System.Action UpdateScrollState;
         public System.Action SetUserInputLineAsLastSibling;
+        public System.Action ActivateInputField;
     }
 
     private SecuredDirectoryCallbacks callbacks;
     private bool awaitingFirstConfirmation = false;
     private bool awaitingSecondConfirmation = false;
     private bool isSecuredDirectoryUnlocked = false; // Track if the secured directory has been unlocked
-    private const string SECURED_PASSWORD = "admin123";
+    private bool shouldShowWarnings = false; // Track if warning messages should be displayed
+    private Coroutine warningCoroutine; // Reference to the warning coroutine
+    private const string SECURED_PASSWORD = "hackyeah2025";
 
     public void Initialize(SecuredDirectoryCallbacks securedCallbacks)
     {
@@ -65,6 +68,8 @@ public class SecuredDirectoryManager : MonoBehaviour
         }
         else if (awaitingSecondConfirmation)
         {
+            // Stop the warning messages when user responds
+            StopWarningMessages();
             ProcessSecondConfirmation(input);
         }
     }
@@ -95,7 +100,65 @@ public class SecuredDirectoryManager : MonoBehaviour
 
     private IEnumerator PlaySecondConfirmationWithTypewriter()
     {
+        // Disable user input during typewriter animation
+        callbacks.SetUserInputLineActive(false);
+        
         yield return callbacks.PlayTypewriterEffect("Are you definitely sure? [yes/no]");
+        
+        // After typewriter effect ends, start showing recurring warning messages
+        StartWarningMessages();
+    }
+
+    private void StartWarningMessages()
+    {
+        shouldShowWarnings = true;
+        warningCoroutine = StartCoroutine(ShowRecurringWarnings());
+    }
+
+    private void StopWarningMessages()
+    {
+        shouldShowWarnings = false;
+        if (warningCoroutine != null)
+        {
+            StopCoroutine(warningCoroutine);
+            warningCoroutine = null;
+        }
+    }
+
+    private IEnumerator ShowRecurringWarnings()
+    {
+        // Wait for the first warning interval
+        yield return new WaitForSeconds(0.75f);
+        
+        if (shouldShowWarnings) // Check if warnings should still be shown
+        {
+            // Show first warning
+            callbacks.AddResponseLine("<color=red>WARNING: YOU MAY REGRET DOING THAT</color>");
+            
+            // Ensure user input line is always the last sibling after adding warning
+            callbacks.SetUserInputLineAsLastSibling();
+            callbacks.UpdateScrollState();
+            
+            // Enable user input after the first warning
+            callbacks.SetUserInputLineActive(true);
+            callbacks.ActivateInputField();
+        }
+        
+        // Continue showing warnings every 0.75 seconds
+        while (shouldShowWarnings)
+        {
+            yield return new WaitForSeconds(0.75f);
+            
+            if (shouldShowWarnings) // Check again after waiting in case it was stopped
+            {
+                callbacks.AddResponseLine("<color=red>WARNING: YOU MAY REGRET DOING THAT</color>");
+                
+                // Ensure user input line is always the last sibling after adding warning
+                callbacks.SetUserInputLineAsLastSibling();
+                
+                callbacks.UpdateScrollState();
+            }
+        }
     }
 
     private void ProcessSecondConfirmation(string input)
@@ -116,8 +179,14 @@ public class SecuredDirectoryManager : MonoBehaviour
         }
         else
         {
-            // Invalid response
+            // Invalid response - restart warning messages since user hasn't given valid response
             callbacks.AddResponseLine("Please type 'yes' or 'no'.");
+            
+            // Ensure user input line is positioned correctly after invalid response message
+            callbacks.SetUserInputLineAsLastSibling();
+            callbacks.UpdateScrollState();
+            
+            StartWarningMessages();
         }
     }
 
@@ -163,6 +232,7 @@ public class SecuredDirectoryManager : MonoBehaviour
     {
         awaitingFirstConfirmation = false;
         awaitingSecondConfirmation = false;
+        StopWarningMessages(); // Stop warnings when resetting state
     }
 
     public void CancelConfirmation()
