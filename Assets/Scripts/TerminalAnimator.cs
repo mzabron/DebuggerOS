@@ -48,22 +48,22 @@ public class TerminalAnimator : MonoBehaviour
         // Loading animation with dots
         GameObject loadingLine = callbacks.AddResponseLine("");
         TMP_Text loadingText = loadingLine.GetComponentInChildren<TMP_Text>();
-        /*
+
         // Animate dots 3 times
-        // for (int cycle = 0; cycle < 3; cycle++)
-        // {
-        //     // Show dots one by one
-        //     for (int dots = 1; dots <= 3; dots++)
-        //     {
-        //         loadingText.text = new string('.', dots);
-        //         yield return new WaitForSeconds(0.5f);
-        //     }
+         for (int cycle = 0; cycle < 3; cycle++)
+        {
+            // Show dots one by one
+            for (int dots = 1; dots <= 3; dots++)
+            {
+                loadingText.text = new string('.', dots);
+                yield return new WaitForSeconds(0.5f);
+            }
 
             // Clear dots
             loadingText.text = "";
             yield return new WaitForSeconds(0.3f);
         }
-        */
+        
 
         // Remove the loading line
         callbacks.RemoveSpecificLine(loadingLine);
