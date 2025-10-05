@@ -14,6 +14,9 @@ public class TerminalManager : MonoBehaviour
     public GameObject commandLineContainer;
     public GameObject userInputLinePrefab;
 
+
+    public GameObject flappyBirdCanvas;
+
     private string lastUserInput = "";
     private int characterLimit = 40;
     private int maxDirectoryLines = 200;
@@ -24,11 +27,11 @@ public class TerminalManager : MonoBehaviour
     private string currentDirectoryPath = "";
     private string basePrompt = "C:\\SYSTEM_32>";
     
-    // Password protection fields
     private bool awaitingPassword = false;
 
     void Start()
     {
+
         InitializeAnimator();
         InitializeInterpreter();
         InitializeSecuredDirectoryManager();
@@ -42,17 +45,17 @@ public class TerminalManager : MonoBehaviour
             inputField.characterLimit = characterLimit;
         }
         UpdateScrollState();
-        
-        // Set initial directory text
         UpdateUserInputLineDirectoryText();
+
+        // Ensure Flappy Bird canvas starts hidden
+        if (flappyBirdCanvas != null)
+            flappyBirdCanvas.SetActive(false);
     }
 
     void OnDestroy()
     {
         if (inputField != null)
-        {
             inputField.onSubmit.RemoveListener(OnInputSubmit);
-        }
     }
 
     private void InitializeAnimator()
@@ -63,7 +66,7 @@ public class TerminalManager : MonoBehaviour
         {
             AddResponseLine = AddResponseLine,
             RemoveSpecificLine = RemoveSpecificLine,
-            GetInputField = (gameObject) => inputField
+            GetInputField = (go) => inputField
         };
 
         terminalAnimator.Initialize(callbacks);
@@ -78,9 +81,11 @@ public class TerminalManager : MonoBehaviour
             AddResponseLine = AddResponseLine,
             ClearScreen = ClearScreen,
             PlayTypewriterEffect = PlayTypewriterEffect,
-            StartCoroutine = (coroutine) => StartCoroutine(coroutine),
+            StartCoroutine = (c) => StartCoroutine(c),
             SetUserInputLineActive = SetUserInputLineActive,
-            UpdateDirectoryPath = UpdateDirectoryPath
+            UpdateDirectoryPath = UpdateDirectoryPath,
+
+            ActivateFlappyBirdCanvas = () => StartCoroutine(ActivateFlappyBirdCanvasSequence())
         };
 
         interpreter.Initialize(callbacks);
@@ -90,18 +95,16 @@ public class TerminalManager : MonoBehaviour
     {
         securedDirectoryManager = GetComponent<SecuredDirectoryManager>();
         if (securedDirectoryManager == null)
-        {
             securedDirectoryManager = gameObject.AddComponent<SecuredDirectoryManager>();
-        }
 
         var callbacks = new SecuredDirectoryManager.SecuredDirectoryCallbacks
         {
             AddResponseLine = AddResponseLine,
             ProcessCommand = (command) => interpreter.ProcessCommand(command),
             PlayTypewriterEffect = PlayTypewriterEffect,
-            PlayGlitchTypewriterEffect = (text) => terminalAnimator.GlitchTypewriterEffect(text),
-            PlayScreenGlitchEffect = (duration) => terminalAnimator.ScreenGlitchEffect(duration),
-            StartCoroutine = (coroutine) => StartCoroutine(coroutine),
+            PlayGlitchTypewriterEffect = (t) => terminalAnimator.GlitchTypewriterEffect(t),
+            PlayScreenGlitchEffect = (d) => terminalAnimator.ScreenGlitchEffect(d),
+            StartCoroutine = (c) => StartCoroutine(c),
             SetUserInputLineActive = SetUserInputLineActive,
             UpdateScrollState = () => {
                 UpdateScrollState();
@@ -109,15 +112,11 @@ public class TerminalManager : MonoBehaviour
             },
             SetUserInputLineAsLastSibling = () => {
                 if (userInputLine != null)
-                {
                     userInputLine.transform.SetAsLastSibling();
-                }
             },
             ActivateInputField = () => {
                 if (inputField != null)
-                {
                     inputField.ActivateInputField();
-                }
             }
         };
 
@@ -128,10 +127,8 @@ public class TerminalManager : MonoBehaviour
     {
         lastUserInput = userInput;
         inputField.text = "";
-
         AddDirectoryLine();
         
-        // Check current state and process accordingly
         if (awaitingPassword)
         {
             ProcessPasswordInput(lastUserInput);
@@ -142,32 +139,28 @@ public class TerminalManager : MonoBehaviour
         }
         else
         {
-            // Check if user is trying to access secured directory
             if (IsSecuredDirectoryCommand(lastUserInput))
             {
-                // Check if secured directory is already unlocked
                 if (securedDirectoryManager.IsSecuredDirectoryUnlocked())
-                {
-                    // Directory is unlocked, allow normal access
                     interpreter.ProcessCommand(lastUserInput);
-                }
                 else
                 {
-                    // Directory is still locked, require password
                     AddResponseLine("Enter the password:");
                     awaitingPassword = true;
-                    SetPasswordMode(true); // Enable password masking
+                    SetPasswordMode(true);
                 }
             }
             else
             {
-                // Process the command through the interpreter
                 interpreter.ProcessCommand(lastUserInput);
             }
         }
 
-        userInputLine.transform.SetAsLastSibling();
-        inputField.ActivateInputField();
+        if (userInputLine.activeSelf && inputField != null)
+        {
+            userInputLine.transform.SetAsLastSibling();
+            inputField.ActivateInputField();
+        }
         UpdateScrollState();
         StartCoroutine(ScrollToBottomCoroutine());
     }
@@ -179,7 +172,6 @@ public class TerminalManager : MonoBehaviour
         {
             string command = parts[0].ToLower();
             string directory = parts[1].ToLower();
-            
             return (command == "cd") && (directory == "secured");
         }
         return false;
@@ -189,26 +181,14 @@ public class TerminalManager : MonoBehaviour
     {
         bool passwordCorrect = securedDirectoryManager.ProcessPasswordInput(password);
         awaitingPassword = false;
-        SetPasswordMode(false); // Disable password masking after password input
-        
-        // If password was incorrect, the SecuredDirectoryManager already handled the response
-        // If password was correct, it started the confirmation sequence
+        SetPasswordMode(false);
     }
 
     private void SetPasswordMode(bool enabled)
     {
         if (inputField != null)
         {
-            if (enabled)
-            {
-                inputField.inputType = TMP_InputField.InputType.Password;
-            }
-            else
-            {
-                inputField.inputType = TMP_InputField.InputType.Standard;
-            }
-            
-            // Force update the input field
+            inputField.inputType = enabled ? TMP_InputField.InputType.Password : TMP_InputField.InputType.Standard;
             inputField.ForceLabelUpdate();
         }
     }
@@ -226,10 +206,7 @@ public class TerminalManager : MonoBehaviour
             TMP_Text[] textComponents = userInputLine.GetComponentsInChildren<TMP_Text>();
             if (textComponents.Length > 0)
             {
-                // Update the directory prompt text
                 TMP_Text directoryText = textComponents[0];
-                
-                // Insert the directory path before the last '>' character
                 string promptWithPath = basePrompt.Substring(0, basePrompt.Length - 1) + currentDirectoryPath + ">";
                 directoryText.text = promptWithPath;
             }
@@ -240,59 +217,37 @@ public class TerminalManager : MonoBehaviour
     {
         GameObject originalUserInputLine = userInputLine;
 
-        // Clear all lines from the queue
         while (directoryLineQueue.Count > 0)
         {
             GameObject line = directoryLineQueue.Dequeue();
             if (line != null)
-            {
                 Destroy(line);
-            }
         }
 
-        // Destroy the current userInputLine
         if (originalUserInputLine != null)
-        {
             Destroy(originalUserInputLine);
-        }
 
-        // Reset secured directory state when clearing screen
         securedDirectoryManager.CancelConfirmation();
-        awaitingPassword = false; // Reset password state
-        SetPasswordMode(false); // Ensure password mode is disabled
+        awaitingPassword = false;
+        SetPasswordMode(false);
 
         StartCoroutine(ClearScreenCoroutine());
     }
 
     private IEnumerator ClearScreenCoroutine()
     {
-        // Wait for objects to be properly destroyed
         yield return null;
-        
-        // Force layout rebuild
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(commandLineContainer.GetComponent<RectTransform>());
-        
-        // Reset container size
         Vector2 commandLineContainerSize = commandLineContainer.GetComponent<RectTransform>().sizeDelta;
         commandLineContainer.GetComponent<RectTransform>().sizeDelta = new Vector2(commandLineContainerSize.x, 45);
-        
-        // Wait another frame to ensure layout is properly updated
         yield return null;
-        
-        // Now instantiate the new userInputLine
         userInputLine = Instantiate(userInputLinePrefab, commandLineContainer.transform);
-        
-        // Ensure it's positioned correctly
         userInputLine.transform.SetAsLastSibling();
-        
-        // Force another layout update
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(commandLineContainer.GetComponent<RectTransform>());
-        
         RecreateUserInputLine();
         UpdateUserInputLineDirectoryText();
-
         UpdateScrollState();
         StartCoroutine(ScrollToBottomCoroutine());
     }
@@ -306,7 +261,7 @@ public class TerminalManager : MonoBehaviour
             {
                 inputField.onSubmit.AddListener(OnInputSubmit);
                 inputField.characterLimit = characterLimit;
-                SetPasswordMode(false); // Ensure new input field starts in normal mode
+                SetPasswordMode(false);
                 inputField.ActivateInputField();
             }
         }
@@ -315,32 +270,20 @@ public class TerminalManager : MonoBehaviour
     private void AddDirectoryLine()
     {
         if (directoryLineQueue.Count >= maxDirectoryLines)
-        {
             RemoveOldestDirectoryLine();
-        }
 
         Vector2 commandLineContainerSize = commandLineContainer.GetComponent<RectTransform>().sizeDelta;
-        commandLineContainer.GetComponent<RectTransform>().sizeDelta = new Vector2(commandLineContainerSize.x, commandLineContainerSize.y + 30);
-        
+        commandLineContainer.GetComponent<RectTransform>().sizeDelta =
+            new Vector2(commandLineContainerSize.x, commandLineContainerSize.y + 30);
+
         GameObject newDirectoryLine = Instantiate(directoryLine, commandLineContainer.transform);
-        
+
         TMP_Text[] textComponents = newDirectoryLine.GetComponentsInChildren<TMP_Text>();
         if (textComponents.Length > 1)
         {
-            // Set the directory text for the command line that was just executed
-            // Insert the directory path before the last '>' character
             string promptWithPath = basePrompt.Substring(0, basePrompt.Length - 1) + currentDirectoryPath + ">";
             textComponents[0].text = promptWithPath;
-            
-            // Display asterisks if it was a password input
-            if (awaitingPassword)
-            {
-                textComponents[1].text = new string('*', lastUserInput.Length);
-            }
-            else
-            {
-                textComponents[1].text = lastUserInput;
-            }
+            textComponents[1].text = awaitingPassword ? new string('*', lastUserInput.Length) : lastUserInput;
         }
 
         directoryLineQueue.Enqueue(newDirectoryLine);
@@ -351,29 +294,27 @@ public class TerminalManager : MonoBehaviour
         if (directoryLineQueue.Count > 0)
         {
             GameObject oldestLine = directoryLineQueue.Dequeue();
-
             if (oldestLine != null)
             {
                 Vector2 commandLineContainerSize = commandLineContainer.GetComponent<RectTransform>().sizeDelta;
-                commandLineContainer.GetComponent<RectTransform>().sizeDelta = new Vector2(commandLineContainerSize.x, commandLineContainerSize.y - 30);
+                commandLineContainer.GetComponent<RectTransform>().sizeDelta =
+                    new Vector2(commandLineContainerSize.x, commandLineContainerSize.y - 30);
                 Destroy(oldestLine);
             }
         }
     }
 
-    // Methods used by the animator and interpreter
     public GameObject AddResponseLine(string text)
     {
         Vector2 commandLineContainerSize = commandLineContainer.GetComponent<RectTransform>().sizeDelta;
-        commandLineContainer.GetComponent<RectTransform>().sizeDelta = new Vector2(commandLineContainerSize.x, commandLineContainerSize.y + 30);
+        commandLineContainer.GetComponent<RectTransform>().sizeDelta =
+            new Vector2(commandLineContainerSize.x, commandLineContainerSize.y + 30);
 
         GameObject newResponseLine = Instantiate(responseLine, commandLineContainer.transform);
 
         TMP_Text textComponent = newResponseLine.GetComponentInChildren<TMP_Text>();
         if (textComponent != null)
-        {
             textComponent.text = text;
-        }
 
         directoryLineQueue.Enqueue(newResponseLine);
         return newResponseLine;
@@ -384,16 +325,14 @@ public class TerminalManager : MonoBehaviour
         if (lineToRemove != null)
         {
             Vector2 commandLineContainerSize = commandLineContainer.GetComponent<RectTransform>().sizeDelta;
-            commandLineContainer.GetComponent<RectTransform>().sizeDelta = new Vector2(commandLineContainerSize.x, commandLineContainerSize.y - 30);
+            commandLineContainer.GetComponent<RectTransform>().sizeDelta =
+                new Vector2(commandLineContainerSize.x, commandLineContainerSize.y - 30);
 
-            // Remove from queue (convert to list, remove, convert back)
             List<GameObject> tempList = new List<GameObject>(directoryLineQueue);
             tempList.Remove(lineToRemove);
             directoryLineQueue.Clear();
             foreach (GameObject obj in tempList)
-            {
                 directoryLineQueue.Enqueue(obj);
-            }
 
             Destroy(lineToRemove);
         }
@@ -404,21 +343,17 @@ public class TerminalManager : MonoBehaviour
         yield return new WaitForEndOfFrame();
         Canvas.ForceUpdateCanvases();
         if (scrollRect.vertical)
-        {
             scrollRect.verticalNormalizedPosition = 0f;
-        }
     }
 
     private void UpdateScrollState()
     {
         RectTransform containerRect = commandLineContainer.GetComponent<RectTransform>();
         RectTransform viewportRect = scrollRect.viewport;
-
         bool needsScrolling = containerRect.sizeDelta.y > viewportRect.rect.height;
         scrollRect.vertical = needsScrolling;
     }
 
-    // Public methods to access animations from outside
     public IEnumerator PlayTypewriterEffect(string text)
     {
         return terminalAnimator.TypewriterEffect(text);
@@ -437,8 +372,19 @@ public class TerminalManager : MonoBehaviour
     private void SetUserInputLineActive(bool active)
     {
         if (userInputLine != null)
-        {
             userInputLine.SetActive(active);
+    }
+
+    // New coroutine to activate and fade in Flappy Bird canvas
+    private IEnumerator ActivateFlappyBirdCanvasSequence()
+    {
+        if (flappyBirdCanvas == null)
+        {
+            AddResponseLine("FlappyBird canvas not assigned.");
+            yield break;
         }
+
+        flappyBirdCanvas.SetActive(true);
+        yield return StartCoroutine(FadeInElement(flappyBirdCanvas, 1f));
     }
 }

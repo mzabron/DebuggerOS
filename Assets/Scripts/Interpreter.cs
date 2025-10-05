@@ -14,6 +14,7 @@ public class Interpreter : MonoBehaviour
         public Action<IEnumerator> StartCoroutine;
         public Action<bool> SetUserInputLineActive;
         public Action<string> UpdateDirectoryPath;
+        public Action ActivateFlappyBirdCanvas;
     }
 
     private InterpreterCallbacks callbacks;
@@ -74,8 +75,6 @@ public class Interpreter : MonoBehaviour
             default: ExecuteUnknownCommand(userInput); break;
         }
     }
-
-    // ============================ COMMANDS ============================
 
     private void ExecuteHelp()
     {
@@ -146,7 +145,6 @@ public class Interpreter : MonoBehaviour
             return;
         }
 
-        // Dynamiczne podwajanie katalogów tylko w drzewie dir1
         if (IsDoublingMode())
         {
             int count = (int)Math.Pow(2, doublingLevel + 1);
@@ -161,7 +159,6 @@ public class Interpreter : MonoBehaviour
             return;
         }
 
-        // Statyczne katalogi z DirectoryInitializer
         if (directories.ContainsKey(currentPathKey))
         {
             var node = directories[currentPathKey];
@@ -197,7 +194,6 @@ public class Interpreter : MonoBehaviour
         string targetDirectory = parts[1];
         string currentPathKey = string.Join("/", currentPath);
 
-        // Powrót do katalogu nadrzędnego
         if (targetDirectory == "..")
         {
             if (currentPath.Count > 0)
@@ -223,7 +219,6 @@ public class Interpreter : MonoBehaviour
             return;
         }
 
-        // Dynamiczne podwajanie tylko w drzewie dir1
         if (IsDoublingMode())
         {
             int count = (int)Math.Pow(2, doublingLevel + 1);
@@ -242,7 +237,6 @@ public class Interpreter : MonoBehaviour
             return;
         }
 
-        // Statyczne katalogi z DirectoryInitializer
         if (directories.ContainsKey(currentPathKey) &&
             directories[currentPathKey].Subdirectories.Contains(targetDirectory))
         {
@@ -331,7 +325,6 @@ public class Interpreter : MonoBehaviour
         if (currentPathKey.StartsWith("dir0"))
             currentPathKey = "dir0";
 
-        // Special handling for shutdown.c file
         if (fileName == "shutdown.c")
         {
             callbacks.AddResponseLine("You cannot display content of that file");
@@ -347,6 +340,16 @@ public class Interpreter : MonoBehaviour
         var node = directories[currentPathKey];
         if (node.Files.ContainsKey(fileName))
         {
+            if (string.Equals(fileName, "Lucys_note.txt", StringComparison.OrdinalIgnoreCase))
+            {
+                callbacks.SetUserInputLineActive?.Invoke(false);
+                if (callbacks.StartCoroutine != null)
+                {
+                    callbacks.StartCoroutine(LucysNoteSequence());
+                }
+                return;
+            }
+
             string content = node.Files[fileName];
             string[] lines = content.Split('\n');
 
@@ -373,6 +376,16 @@ public class Interpreter : MonoBehaviour
         {
             callbacks.AddResponseLine($"File '{fileName}' not found.");
         }
+    }
+
+    private IEnumerator LucysNoteSequence()
+    {
+        if (callbacks.PlayTypewriterEffect != null)
+        {
+            yield return callbacks.PlayTypewriterEffect("You better be patient...");
+        }
+        yield return new WaitForSeconds(1f);
+        callbacks.ActivateFlappyBirdCanvas?.Invoke();
     }
 
     private IEnumerator ExitAnimationCoroutine()
