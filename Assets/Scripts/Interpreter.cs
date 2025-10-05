@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class Interpreter : MonoBehaviour
 {
@@ -43,11 +44,17 @@ public class Interpreter : MonoBehaviour
         if (string.IsNullOrWhiteSpace(userInput))
             return;
 
+        // if (userInput.Trim() == "gcc shutdown shutdown.c")
+        // {
+        //     StartCoroutine(RestartSequence());
+        //     return;
+        // }
+        
         if (awaitingExitConfirmation)
-        {
-            ProcessExitConfirmation(userInput.Trim().ToLower());
-            return;
-        }
+            {
+                ProcessExitConfirmation(userInput.Trim().ToLower());
+                return;
+            }
 
         string command = userInput.Trim();
         string[] parts = command.Split(' ');
@@ -75,6 +82,19 @@ public class Interpreter : MonoBehaviour
         }
     }
 
+    private IEnumerator RestartSequence()
+    {
+        callbacks.SetUserInputLineActive?.Invoke(false);
+        callbacks.AddResponseLine("<color=red>WARNING: System shutdown initiated</color>");
+        yield return new WaitForSeconds(1f);
+        callbacks.AddResponseLine("Removing system files...");
+        yield return new WaitForSeconds(0.5f);
+        callbacks.AddResponseLine("Clearing memory...");
+        yield return new WaitForSeconds(0.5f);
+
+        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+    
     // ============================ COMMANDS ============================
 
     private void ExecuteHelp()
