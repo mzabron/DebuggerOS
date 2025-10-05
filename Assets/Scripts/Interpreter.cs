@@ -71,6 +71,7 @@ public class Interpreter : MonoBehaviour
             case "cat": ExecuteCat(parts); break;
             case "exit":
             case "quit": ExecuteExit(); break;
+            case "gcc": ExecuteGcc(parts); break;
             default: ExecuteUnknownCommand(userInput); break;
         }
     }
@@ -373,6 +374,23 @@ public class Interpreter : MonoBehaviour
         {
             callbacks.AddResponseLine($"File '{fileName}' not found.");
         }
+    }
+
+    private void ExecuteGcc(string[] parts)
+    {
+        if (parts.Length < 3 || parts[1] != "shutdown" || parts[2] != "shutdown.c")
+        {
+            callbacks.AddResponseLine("to add here response line");
+            return;
+        }
+        string currentPathKey = string.Join("/", currentPath);
+        if (currentPathKey != "secured")
+        {
+            callbacks.AddResponseLine("Error: shutdown.c not found in the current directory.");
+            return;
+        }
+        callbacks.AddResponseLine("Compiling shutdown.c...");
+        callbacks.AddResponseLine("Compilation failed. Debug file");
     }
 
     private IEnumerator ExitAnimationCoroutine()
