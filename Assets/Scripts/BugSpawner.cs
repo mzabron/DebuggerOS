@@ -38,23 +38,23 @@ public class BugSpawner : MonoBehaviour
     private bool punishmentMode = false;
     private bool allBugsCleared = false;
     private float timeSinceLastBug = 0f;
+    private bool isInitialized = false;
 
     void Start()
     {
+        // Only initialize the spawn interval, but don't start spawning
         currentSpawnInterval = spawnInterval;
         
-        // Spawn initial bugs
-        for (int i = 0; i < initialBugCount; i++)
-        {
-            SpawnBug();
-        }
-        
-        // Start the spawning coroutine
-        spawnCoroutine = StartCoroutine(SpawnBugsOverTime());
+        // Mark as initialized but don't spawn bugs automatically
+        isInitialized = true;
     }
 
     void Update()
     {
+        // Only run update logic if spawning has been started
+        if (!isInitialized || spawnCoroutine == null)
+            return;
+            
         // Clean up null references from destroyed bugs
         activeBugs.RemoveAll(bug => bug == null);
         

@@ -25,6 +25,8 @@ public class Interpreter : MonoBehaviour
     private int dir1VisitCount = 0;
     private int doublingLevel = 0;
 
+    [SerializeField] private BugSpawner bugSpawner;
+
     public void Initialize(InterpreterCallbacks interpreterCallbacks)
     {
         callbacks = interpreterCallbacks;
@@ -380,7 +382,7 @@ public class Interpreter : MonoBehaviour
     {
         if (parts.Length < 3 || parts[1] != "shutdown" || parts[2] != "shutdown.c")
         {
-            callbacks.AddResponseLine("to add here response line");
+            callbacks.AddResponseLine("Error: wrong paramaters");
             return;
         }
         string currentPathKey = string.Join("/", currentPath);
@@ -390,7 +392,17 @@ public class Interpreter : MonoBehaviour
             return;
         }
         callbacks.AddResponseLine("Compiling shutdown.c...");
-        callbacks.AddResponseLine("Compilation failed. Debug file");
+        callbacks.AddResponseLine("Compilation failed. Debug first");
+
+        // Start BugSpawner when gcc is executed
+        if (bugSpawner != null)
+        {
+            bugSpawner.RestartBugSpawning();
+        }
+        else
+        {
+            Debug.LogWarning("BugSpawner not found! Please assign it in the Inspector or ensure it exists in the scene.");
+        }
     }
 
     private IEnumerator ExitAnimationCoroutine()
