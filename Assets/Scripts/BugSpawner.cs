@@ -1,80 +1,161 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 public class BugSpawner : MonoBehaviour
 {
+    [Header("Spawning Settings")]
     [SerializeField] private GameObject spawner;
     [SerializeField] private GameObject uiObject;
     [SerializeField] private GameObject bugPrefab;
-    [SerializeField] private float moveSpeed = 50f;
-    [SerializeField] private float changeDirectionInterval = 2f;
-
-    private GameObject bug;
-    private Vector2 moveDirection;
-    private float directionTimer;
-    private RectTransform bugRectTransform;
+    [SerializeField] private int initialBugCount = 3;
+    [SerializeField] private int maxBugCount = 20;
+    
+    [Header("Bug Behavior")]
+    [SerializeField] private float baseMoveSpeed = 50f;
+    [SerializeField] private float speedVariation = 20f;
+    
+    [Header("Spawning Timing")]
+    [SerializeField] private float spawnInterval = 5f;
+    [SerializeField] private float spawnIntervalDecrease = 0.1f;
+    [SerializeField] private float minSpawnInterval = 1f;
+    
+    private List<Bug> activeBugs = new List<Bug>();
+    private float currentSpawnInterval;
+    private Coroutine spawnCoroutine;
+    private int bugsDestroyed = 0;
 
     void Start()
     {
-        // Instantiate the prefab to create a game object
-        if (bugPrefab != null)
+        currentSpawnInterval = spawnInterval;
+        
+        // Spawn initial bugs
+        for (int i = 0; i < initialBugCount; i++)
         {
-            bug = Instantiate(bugPrefab, uiObject.transform);
-            bug.transform.position = spawner.transform.position;
-
-            bugRectTransform = bug.GetComponent<RectTransform>();
-            SetRandomDirection();
+            SpawnBug();
         }
-        else
-        {
-            Debug.LogError("BugPrefab not found in Resources folder!");
-        }
+        
+        // Start the spawning coroutine
+        spawnCoroutine = StartCoroutine(SpawnBugsOverTime());
     }
 
     void Update()
     {
-        MoveBug();
-    }
-
-    private void MoveBug()
-    {
-        // Move the bug
-        bugRectTransform.anchoredPosition += moveDirection * moveSpeed * Time.deltaTime;
-        bugRectTransform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(moveDirection.y, moveDirection.x) * Mathf.Rad2Deg + 90);
-        KeepBugInBounds();
-    }
-
-    private void SetRandomDirection()
-    {
-        float angle = Random.Range(0f, 360f);
-        moveDirection = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
-
-        // Rotate bug to face movement direction
-        float rotationAngle = Mathf.Atan2(moveDirection.y, moveDirection.x) * Mathf.Rad2Deg;
-        bug.transform.rotation = Quaternion.Euler(0, 0, rotationAngle + 90); // +90 if your bug sprite faces up
-    }
-
-    private void KeepBugInBounds()
-    {
-        RectTransform parentRect = uiObject.GetComponent<RectTransform>();
-        Vector2 minPosition = parentRect.rect.min;
-        Vector2 maxPosition = parentRect.rect.max;
-
-        Vector2 currentPos = bugRectTransform.anchoredPosition;
-
-        // Bounce off edges
-        if (currentPos.x <= minPosition.x || currentPos.x >= maxPosition.x)
+        // Clean up null references from destroyed bugs
+        activeBugs.RemoveAll(bug => bug == null);
+        
+        // Debug info
+        if (Input.GetKeyDown(KeyCode.B))
         {
-            moveDirection.x = -moveDirection.x;
+            Debug.Log($"Active bugs: {activeBugs.Count}, Bugs destroyed: {bugsDestroyed}");
         }
-        if (currentPos.y <= minPosition.y || currentPos.y >= maxPosition.y)
+    }
+
+    private void SpawnBug()
+    {
+        if (bugPrefab == null || uiObject == null) 
         {
-            moveDirection.y = -moveDirection.y;
+            Debug.LogError("BugPrefab or UiObject not assigned!");
+            return;
+        }
+        
+        if (activeBugs.Count >= maxBugCount)
+        {
+            Debug.Log("Maximum bug count reached!");
+            return;
         }
 
-        // Clamp position within bounds
-        currentPos.x = Mathf.Clamp(currentPos.x, minPosition.x, maxPosition.x);
-        currentPos.y = Mathf.Clamp(currentPos.y, minPosition.y, maxPosition.y);
-        bugRectTransform.anchoredPosition = currentPos;
+        // Instantiate the bug
+        GameObject newBugObject = Instantiate(bugPrefab, uiObject.transform);
+        
+        // Get or add the Bug component
+        Bug bugComponent = newBugObject.GetComponent<Bug>();
+        if (bugComponent == null)
+        {
+            bugComponent = newBugObject.AddComponent<Bug>();
+        }
+        
+        // Calculate random speed variation
+        float randomSpeed = baseMoveSpeed + Random.Range(-speedVariation, speedVariation);
+        
+        // Initialize the bug
+        bugComponent.Initialize(this, uiObject.GetComponent<RectTransform>(), randomSpeed);
+        
+        // Add to active bugs list
+        activeBugs.Add(bugComponent);
+        
+        Debug.Log($"Bug spawned! Total active: {activeBugs.Count}");
     }
+
+    private IEnumerator SpawnBugsOverTime()
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(currentSpawnInterval);
+            
+            // Only spawn if we haven't reached the maximum
+            if (activeBugs.Count < maxBugCount)
+            {
+                SpawnBug();
+                
+                // Gradually decrease spawn interval (spawn faster over time)
+                currentSpawnInterval = Mathf.Max(minSpawnInterval, 
+                    currentSpawnInterval - spawnIntervalDecrease);
+            }
+        }
+    }
+
+    public void OnBugClicked(Bug clickedBug)
+    {
+        bugsDestroyed++;
+        Debug.Log($"Bug clicked! Total destroyed: {bugsDestroyed}");
+        
+        // Remove from active bugs list
+        activeBugs.Remove(clickedBug);
+        
+        // Optional: Slow down spawning when player is actively clicking
+        currentSpawnInterval = Mathf.Min(spawnInterval, currentSpawnInterval + 0.2f);
+    }
+
+    // Public methods for external control
+    public void StartSpawning()
+    {
+        if (spawnCoroutine == null)
+        {
+            spawnCoroutine = StartCoroutine(SpawnBugsOverTime());
+        }
+    }
+
+    public void StopSpawning()
+    {
+        if (spawnCoroutine != null)
+        {
+            StopCoroutine(spawnCoroutine);
+            spawnCoroutine = null;
+        }
+    }
+
+    public void ClearAllBugs()
+    {
+        foreach (Bug bug in activeBugs)
+        {
+            if (bug != null)
+            {
+                Destroy(bug.gameObject);
+            }
+        }
+        activeBugs.Clear();
+        bugsDestroyed = 0;
+    }
+
+    public void ResetSpawnRate()
+    {
+        currentSpawnInterval = spawnInterval;
+    }
+
+    // Getters for debugging or UI display
+    public int GetActiveBugCount() => activeBugs.Count;
+    public int GetBugsDestroyed() => bugsDestroyed;
+    public float GetCurrentSpawnInterval() => currentSpawnInterval;
 }
