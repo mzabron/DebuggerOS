@@ -170,12 +170,14 @@ public class SecuredDirectoryManager : MonoBehaviour
             // User confirmed both times - trigger glitch effect and enter secured directory
             callbacks.StartCoroutine(PlayGlitchSequenceAndEnter());
             ResetState();
+            callbacks.ActivateInputField();
         }
         else if (response == "no" || response == "n")
         {
             // User declined - cancel access
             callbacks.AddResponseLine("Access cancelled.");
             ResetState();
+            callbacks.ActivateInputField();
         }
         else
         {
@@ -185,7 +187,8 @@ public class SecuredDirectoryManager : MonoBehaviour
             // Ensure user input line is positioned correctly after invalid response message
             callbacks.SetUserInputLineAsLastSibling();
             callbacks.UpdateScrollState();
-            
+            callbacks.ActivateInputField();
+
             StartWarningMessages();
         }
     }

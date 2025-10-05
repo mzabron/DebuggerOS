@@ -14,6 +14,8 @@ public class Interpreter : MonoBehaviour
         public Action<IEnumerator> StartCoroutine;
         public Action<bool> SetUserInputLineActive;
         public Action<string> UpdateDirectoryPath;
+        public Action UpdateScrollState;
+        public Action SetUserInputLineAsLastSibling;
     }
 
     private InterpreterCallbacks callbacks;
@@ -27,6 +29,12 @@ public class Interpreter : MonoBehaviour
 
     [SerializeField] private BugSpawner bugSpawner;
 
+    // Shutdown system variables
+    private bool shutdownAvailable = false;
+    private bool awaitingShutdownConfirmation = false;
+    private bool awaitingKillCommand = false;
+    private string requiredKillCommand = "";
+
     public void Initialize(InterpreterCallbacks interpreterCallbacks)
     {
         callbacks = interpreterCallbacks;
@@ -36,6 +44,34 @@ public class Interpreter : MonoBehaviour
         variables["system"] = "DebuggerOS";
 
         directories = DirectoryInitializer.GetDirectories();
+        
+        // Subscribe to bug spawner events
+        if (bugSpawner != null)
+        {
+            bugSpawner.OnShutdownAvailable += OnShutdownBecameAvailable;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        // Unsubscribe from events to prevent memory leaks
+        if (bugSpawner != null)
+        {
+            bugSpawner.OnShutdownAvailable -= OnShutdownBecameAvailable;
+        }
+    }
+
+    private void OnShutdownBecameAvailable()
+    {
+        shutdownAvailable = true;
+        callbacks.AddResponseLine("All bugs eliminated! Debug complete.");
+        callbacks.AddResponseLine("File successfully compiled");
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+
+        // Prepare the kill command with the actual OS username
+        string osUsername = System.Environment.UserName;
+        requiredKillCommand = $"kill {osUsername}";
     }
 
     // ============================ MAIN PROCESS ============================
@@ -44,6 +80,19 @@ public class Interpreter : MonoBehaviour
     {
         if (string.IsNullOrWhiteSpace(userInput))
             return;
+
+        // Handle shutdown confirmation states
+        if (awaitingShutdownConfirmation)
+        {
+            ProcessShutdownConfirmation(userInput.Trim().ToLower());
+            return;
+        }
+
+        if (awaitingKillCommand)
+        {
+            ProcessKillCommand(userInput.Trim());
+            return;
+        }
 
         if (awaitingExitConfirmation)
         {
@@ -74,6 +123,7 @@ public class Interpreter : MonoBehaviour
             case "exit":
             case "quit": ExecuteExit(); break;
             case "gcc": ExecuteGcc(parts); break;
+            case "./shutdown": ExecuteShutdown(); break;
             default: ExecuteUnknownCommand(userInput); break;
         }
     }
@@ -287,6 +337,119 @@ public class Interpreter : MonoBehaviour
         callbacks.UpdateDirectoryPath?.Invoke(pathSuffix);
     }
 
+    private void ExecuteShutdown()
+    {
+        if (!shutdownAvailable)
+        {
+            callbacks.AddResponseLine("Shutdown not available. Please eliminate all system bugs first.");
+            callbacks.UpdateScrollState?.Invoke();
+            callbacks.SetUserInputLineAsLastSibling?.Invoke();
+            callbacks.AddResponseLine("Run 'gcc shutdown shutdown.c' in the secured directory to start debugging.");
+            callbacks.UpdateScrollState?.Invoke();
+            callbacks.SetUserInputLineAsLastSibling?.Invoke();
+            return;
+        }
+
+        callbacks.AddResponseLine("Initiating system shutdown...");
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+        callbacks.AddResponseLine("<color=yellow>Are you sure you want to shutdown the system?</color>");
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+        callbacks.AddResponseLine("<color=yellow>Type 'yes' to continue or 'no' to cancel.</color>");
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+        awaitingShutdownConfirmation = true;
+    }
+
+    private void ProcessShutdownConfirmation(string userInput)
+    {
+        switch (userInput)
+        {
+            case "yes":
+            case "y":
+                awaitingShutdownConfirmation = false;
+                callbacks.AddResponseLine("Shutdown confirmed. Terminating active processes...");
+                callbacks.UpdateScrollState?.Invoke();
+                callbacks.SetUserInputLineAsLastSibling?.Invoke();
+                callbacks.AddResponseLine($"<color=red>CRITICAL: Process '{System.Environment.UserName}' is still running!</color>");
+                callbacks.UpdateScrollState?.Invoke();
+                callbacks.SetUserInputLineAsLastSibling?.Invoke();
+                callbacks.AddResponseLine($"<color=yellow>You must terminate this process to complete shutdown.</color>");
+                callbacks.UpdateScrollState?.Invoke();
+                callbacks.SetUserInputLineAsLastSibling?.Invoke();
+                callbacks.AddResponseLine($"<color=#00FFFF>Type: {requiredKillCommand}</color>");
+                callbacks.UpdateScrollState?.Invoke();
+                callbacks.SetUserInputLineAsLastSibling?.Invoke();
+                awaitingKillCommand = true;
+                break;
+            case "no":
+            case "n":
+                awaitingShutdownConfirmation = false;
+                callbacks.AddResponseLine("Shutdown cancelled.");
+                callbacks.UpdateScrollState?.Invoke();
+                callbacks.SetUserInputLineAsLastSibling?.Invoke();
+                break;
+            default:
+                callbacks.AddResponseLine("Please type 'yes' to continue shutdown or 'no' to cancel.");
+                callbacks.UpdateScrollState?.Invoke();
+                callbacks.SetUserInputLineAsLastSibling?.Invoke();
+                break;
+        }
+    }
+
+    private void ProcessKillCommand(string userInput)
+    {
+        if (userInput == requiredKillCommand)
+        {
+            // Correct kill command entered - shutdown the system
+            awaitingKillCommand = false;
+            callbacks.StartCoroutine?.Invoke(ShutdownSequence());
+        }
+        else
+        {
+            // Wrong command - keep prompting (awaitingKillCommand remains true)
+            callbacks.AddResponseLine($"<color=red>Process termination failed!</color>");
+            callbacks.UpdateScrollState?.Invoke();
+            callbacks.SetUserInputLineAsLastSibling?.Invoke();
+            callbacks.AddResponseLine($"<color=yellow>You must type the exact command: {requiredKillCommand}</color>");
+            callbacks.UpdateScrollState?.Invoke();
+            callbacks.SetUserInputLineAsLastSibling?.Invoke();
+            // Note: awaitingKillCommand stays true, so it will keep prompting
+        }
+    }
+
+    private IEnumerator ShutdownSequence()
+    {
+        callbacks.SetUserInputLineActive?.Invoke(false);
+        
+        yield return callbacks.PlayTypewriterEffect($"Terminating process '{System.Environment.UserName}'...");
+        yield return new WaitForSeconds(1f);
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+
+        yield return callbacks.PlayTypewriterEffect("Process terminated successfully.");
+        yield return new WaitForSeconds(0.5f);
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+
+        yield return callbacks.PlayTypewriterEffect("Goodbye forever.");
+        yield return new WaitForSeconds(1f);
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+
+        yield return callbacks.PlayTypewriterEffect("Thanks for playing.");
+        yield return new WaitForSeconds(0.8f);
+        callbacks.UpdateScrollState?.Invoke();
+        callbacks.SetUserInputLineAsLastSibling?.Invoke();
+
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
+
     private void ExecuteExit()
     {
         callbacks.AddResponseLine("Are you sure you want to exit?");
@@ -391,8 +554,8 @@ public class Interpreter : MonoBehaviour
             callbacks.AddResponseLine("Error: shutdown.c not found in the current directory.");
             return;
         }
-        callbacks.AddResponseLine("Compiling shutdown.c...");
-        callbacks.AddResponseLine("Compilation failed. Debug first");
+        callbacks.AddResponseLine("<Compiling shutdown.c...");
+        callbacks.AddResponseLine("<color=yellow>Compilation failed. Debug first</color>");
 
         // Start BugSpawner when gcc is executed
         if (bugSpawner != null)

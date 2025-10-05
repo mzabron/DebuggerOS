@@ -80,7 +80,17 @@ public class TerminalManager : MonoBehaviour
             PlayTypewriterEffect = PlayTypewriterEffect,
             StartCoroutine = (coroutine) => StartCoroutine(coroutine),
             SetUserInputLineActive = SetUserInputLineActive,
-            UpdateDirectoryPath = UpdateDirectoryPath
+            UpdateDirectoryPath = UpdateDirectoryPath,
+            UpdateScrollState = () => {
+                UpdateScrollState();
+                StartCoroutine(ScrollToBottomCoroutine());
+            },
+            SetUserInputLineAsLastSibling = () => {
+                if (userInputLine != null)
+                {
+                    userInputLine.transform.SetAsLastSibling();
+                }
+            }
         };
 
         interpreter.Initialize(callbacks);

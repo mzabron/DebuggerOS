@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -39,6 +40,9 @@ public class BugSpawner : MonoBehaviour
     private bool allBugsCleared = false;
     private float timeSinceLastBug = 0f;
     private bool isInitialized = false;
+
+    // Event for when all bugs are cleared and shutdown is available
+    public event Action OnShutdownAvailable;
 
     void Start()
     {
@@ -125,8 +129,8 @@ public class BugSpawner : MonoBehaviour
         }
         
         // Generate random variations
-        float randomSpeedMultiplier = Random.Range(1f, maxSpeedMultiplier);
-        float randomSizeMultiplier = Random.Range(1f, maxSizeMultiplier);
+        float randomSpeedMultiplier = UnityEngine.Random.Range(1f, maxSpeedMultiplier);
+        float randomSizeMultiplier = UnityEngine.Random.Range(1f, maxSizeMultiplier);
         
         // Calculate final speed
         float finalSpeed = baseMoveSpeed * randomSpeedMultiplier;
@@ -191,10 +195,10 @@ public class BugSpawner : MonoBehaviour
             ExitPunishmentMode();
         }
         
-        Debug.Log($"?? VICTORY! All bugs cleared! Total bugs destroyed: {bugsDestroyed}");
+        Debug.Log($"? VICTORY! All bugs cleared! Total bugs destroyed: {bugsDestroyed}");
         
-        // Optional: You can add victory effects here
-        // For example: play victory sound, show victory UI, etc.
+        // Notify that shutdown is now available
+        OnShutdownAvailable?.Invoke();
     }
 
     private void EnterPunishmentMode()
