@@ -5,7 +5,7 @@ using UnityEngine.UI;
 public class Bug : MonoBehaviour, IPointerClickHandler
 {
     [SerializeField] private float moveSpeed = 50f;
-    [SerializeField] private float changeDirectionInterval = 2f;
+    [SerializeField] private float changeDirectionInterval = 8f;
     
     private Vector2 moveDirection;
     private float directionTimer;
