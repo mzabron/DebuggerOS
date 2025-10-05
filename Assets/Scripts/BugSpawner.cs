@@ -10,21 +10,25 @@ public class BugSpawner : MonoBehaviour
     [SerializeField] private GameObject uiObject;
     [SerializeField] private GameObject bugPrefab;
     [SerializeField] private int initialBugCount = 3;
-    [SerializeField] private int maxBugCount = 30; // Increased from 20 to 30
+    [SerializeField] private int maxBugCount = 30;
     
     [Header("Bug Behavior")]
     [SerializeField] private float baseMoveSpeed = 50f;
-    [SerializeField] private float speedVariation = 20f;
+    [SerializeField] private float maxSpeedMultiplier = 1.8f; // 50% faster than base speed
+    [SerializeField] private float maxSizeMultiplier = 4f; // 20% larger than base size
     
     [Header("Spawning Timing")]
-    [SerializeField] private float spawnInterval = 4f; // Decreased from 5f to 4f
-    [SerializeField] private float spawnIntervalDecrease = 0.15f; // Increased from 0.1f to 0.15f
-    [SerializeField] private float minSpawnInterval = 0.5f; // Decreased from 1f to 0.5f
+    [SerializeField] private float spawnInterval = 4f;
+    [SerializeField] private float spawnIntervalDecrease = 0.15f;
+    [SerializeField] private float minSpawnInterval = 0.5f;
     
     [Header("Punishment System")]
-    [SerializeField] private float punishmentThreshold = 10f; // Time without killing bugs before punishment
-    [SerializeField] private float punishmentSpawnMultiplier = 2f; // How much faster to spawn during punishment
-    [SerializeField] private int punishmentBugBurst = 3; // Extra bugs to spawn during punishment
+    [SerializeField] private float punishmentThreshold = 10f;
+    [SerializeField] private float punishmentSpawnMultiplier = 2f;
+    [SerializeField] private int punishmentBugBurst = 3;
+    
+    [Header("Victory Condition")]
+    [SerializeField] private float victoryDelay = 2f; // Time to wait after clearing all bugs before declaring victory
     
     private List<Bug> activeBugs = new List<Bug>();
     private float currentSpawnInterval;
@@ -32,6 +36,8 @@ public class BugSpawner : MonoBehaviour
     private int bugsDestroyed = 0;
     private float timeSinceLastKill = 0f;
     private bool punishmentMode = false;
+    private bool allBugsCleared = false;
+    private float timeSinceLastBug = 0f;
 
     void Start()
     {
@@ -52,24 +58,50 @@ public class BugSpawner : MonoBehaviour
         // Clean up null references from destroyed bugs
         activeBugs.RemoveAll(bug => bug == null);
         
-        // Track time since last bug kill
-        timeSinceLastKill += Time.deltaTime;
-        
-        // Check if we should enter punishment mode
-        if (timeSinceLastKill >= punishmentThreshold && !punishmentMode)
+        // Check if all bugs are cleared
+        if (activeBugs.Count == 0 && !allBugsCleared)
         {
-            EnterPunishmentMode();
+            timeSinceLastBug += Time.deltaTime;
+            
+            // Wait for victory delay before stopping spawning
+            if (timeSinceLastBug >= victoryDelay)
+            {
+                OnAllBugsCleared();
+            }
+        }
+        else if (activeBugs.Count > 0)
+        {
+            // Reset the timer if bugs are still active
+            timeSinceLastBug = 0f;
+        }
+        
+        // Track time since last bug kill (only if spawning is still active)
+        if (!allBugsCleared)
+        {
+            timeSinceLastKill += Time.deltaTime;
+            
+            // Check if we should enter punishment mode
+            if (timeSinceLastKill >= punishmentThreshold && !punishmentMode)
+            {
+                EnterPunishmentMode();
+            }
         }
         
         // Debug info
         if (Input.GetKeyDown(KeyCode.B))
         {
-            Debug.Log($"Active bugs: {activeBugs.Count}, Bugs destroyed: {bugsDestroyed}, Time since last kill: {timeSinceLastKill:F1}s, Punishment mode: {punishmentMode}");
+            Debug.Log($"Active bugs: {activeBugs.Count}, Bugs destroyed: {bugsDestroyed}, Time since last kill: {timeSinceLastKill:F1}s, Punishment mode: {punishmentMode}, All cleared: {allBugsCleared}");
         }
     }
 
     private void SpawnBug()
     {
+        // Don't spawn if all bugs have been cleared
+        if (allBugsCleared)
+        {
+            return;
+        }
+        
         if (bugPrefab == null || uiObject == null) 
         {
             Debug.LogError("BugPrefab or UiObject not assigned!");
@@ -92,21 +124,25 @@ public class BugSpawner : MonoBehaviour
             bugComponent = newBugObject.AddComponent<Bug>();
         }
         
-        // Calculate random speed variation
-        float randomSpeed = baseMoveSpeed + Random.Range(-speedVariation, speedVariation);
+        // Generate random variations
+        float randomSpeedMultiplier = Random.Range(1f, maxSpeedMultiplier);
+        float randomSizeMultiplier = Random.Range(1f, maxSizeMultiplier);
         
-        // Initialize the bug
-        bugComponent.Initialize(this, uiObject.GetComponent<RectTransform>(), randomSpeed);
+        // Calculate final speed
+        float finalSpeed = baseMoveSpeed * randomSpeedMultiplier;
+        
+        // Initialize the bug with random speed and size
+        bugComponent.Initialize(this, uiObject.GetComponent<RectTransform>(), finalSpeed, randomSizeMultiplier);
         
         // Add to active bugs list
         activeBugs.Add(bugComponent);
         
-        Debug.Log($"Bug spawned! Total active: {activeBugs.Count}");
+        Debug.Log($"Bug spawned! Speed: {finalSpeed:F1} (x{randomSpeedMultiplier:F2}), Size: x{randomSizeMultiplier:F2}, Total active: {activeBugs.Count}");
     }
 
     private IEnumerator SpawnBugsOverTime()
     {
-        while (true)
+        while (!allBugsCleared)
         {
             float currentInterval = punishmentMode ? 
                 currentSpawnInterval / punishmentSpawnMultiplier : 
@@ -114,15 +150,15 @@ public class BugSpawner : MonoBehaviour
                 
             yield return new WaitForSeconds(currentInterval);
             
-            // Only spawn if we haven't reached the maximum
-            if (activeBugs.Count < maxBugCount)
+            // Only spawn if we haven't reached the maximum and haven't cleared all bugs
+            if (activeBugs.Count < maxBugCount && !allBugsCleared)
             {
                 SpawnBug();
                 
                 // In punishment mode, spawn extra bugs in bursts
-                if (punishmentMode)
+                if (punishmentMode && !allBugsCleared)
                 {
-                    for (int i = 0; i < punishmentBugBurst && activeBugs.Count < maxBugCount; i++)
+                    for (int i = 0; i < punishmentBugBurst && activeBugs.Count < maxBugCount && !allBugsCleared; i++)
                     {
                         yield return new WaitForSeconds(0.2f); // Small delay between burst spawns
                         SpawnBug();
@@ -134,6 +170,31 @@ public class BugSpawner : MonoBehaviour
                     currentSpawnInterval - spawnIntervalDecrease);
             }
         }
+        
+        Debug.Log("Spawning coroutine ended - All bugs cleared!");
+    }
+
+    private void OnAllBugsCleared()
+    {
+        allBugsCleared = true;
+        
+        // Stop the spawning coroutine
+        if (spawnCoroutine != null)
+        {
+            StopCoroutine(spawnCoroutine);
+            spawnCoroutine = null;
+        }
+        
+        // Exit punishment mode if active
+        if (punishmentMode)
+        {
+            ExitPunishmentMode();
+        }
+        
+        Debug.Log($"?? VICTORY! All bugs cleared! Total bugs destroyed: {bugsDestroyed}");
+        
+        // Optional: You can add victory effects here
+        // For example: play victory sound, show victory UI, etc.
     }
 
     private void EnterPunishmentMode()
@@ -176,7 +237,7 @@ public class BugSpawner : MonoBehaviour
     // Public methods for external control
     public void StartSpawning()
     {
-        if (spawnCoroutine == null)
+        if (spawnCoroutine == null && !allBugsCleared)
         {
             spawnCoroutine = StartCoroutine(SpawnBugsOverTime());
         }
@@ -204,6 +265,8 @@ public class BugSpawner : MonoBehaviour
         bugsDestroyed = 0;
         timeSinceLastKill = 0f;
         punishmentMode = false;
+        allBugsCleared = false;
+        timeSinceLastBug = 0f;
     }
 
     public void ResetSpawnRate()
@@ -211,6 +274,25 @@ public class BugSpawner : MonoBehaviour
         currentSpawnInterval = spawnInterval;
         timeSinceLastKill = 0f;
         punishmentMode = false;
+        allBugsCleared = false;
+        timeSinceLastBug = 0f;
+    }
+
+    public void RestartBugSpawning()
+    {
+        // Method to restart the bug spawning system
+        allBugsCleared = false;
+        timeSinceLastBug = 0f;
+        ResetSpawnRate();
+        StartSpawning();
+        
+        // Spawn initial bugs again
+        for (int i = 0; i < initialBugCount; i++)
+        {
+            SpawnBug();
+        }
+        
+        Debug.Log("Bug spawning restarted!");
     }
 
     // Getters for debugging or UI display
@@ -219,4 +301,5 @@ public class BugSpawner : MonoBehaviour
     public float GetCurrentSpawnInterval() => currentSpawnInterval;
     public bool IsPunishmentMode() => punishmentMode;
     public float GetTimeSinceLastKill() => timeSinceLastKill;
+    public bool AreAllBugsCleared() => allBugsCleared;
 }

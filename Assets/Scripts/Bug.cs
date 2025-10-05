@@ -13,7 +13,7 @@ public class Bug : MonoBehaviour, IPointerClickHandler
     private RectTransform parentRect;
     private BugSpawner spawner;
 
-    public void Initialize(BugSpawner bugSpawner, RectTransform parent, float speed)
+    public void Initialize(BugSpawner bugSpawner, RectTransform parent, float speed, float sizeMultiplier)
     {
         spawner = bugSpawner;
         parentRect = parent;
@@ -29,8 +29,21 @@ public class Bug : MonoBehaviour, IPointerClickHandler
         // Make sure raycast target is enabled for clicking
         GetComponent<Image>().raycastTarget = true;
         
+        // Apply random size
+        ApplyRandomSize(sizeMultiplier);
+        
         SetRandomDirection();
         SetRandomStartPosition();
+    }
+
+    private void ApplyRandomSize(float sizeMultiplier)
+    {
+        if (bugRectTransform != null)
+        {
+            // Apply the size multiplier to the bug's scale
+            Vector3 currentScale = bugRectTransform.localScale;
+            bugRectTransform.localScale = currentScale * sizeMultiplier;
+        }
     }
 
     void Update()
