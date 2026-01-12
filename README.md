@@ -15,11 +15,15 @@ The experience mixes traditional command-line navigation with fast, arcade-style
 * **Dynamic Spawning System:** An intelligent wave-based system with escalating difficulty.
 
 ## Preview
-Startup sequence and a couple of exemplary moments from the game:
+Startup sequence and a couple of exemplary moments from the game.
 
-<video src="Assets/Preview/start_animation.mp4" controls></video>  
-<video src="Assets/Preview/preview1.mp4" controls></video>  
-<video src="Assets/Preview/preview2.mp4" controls></video>
+https://github.com/user-attachments/assets/4139cda6-37a7-41d4-b901-492105dc12a4
+
+https://github.com/user-attachments/assets/5f432c8b-32f1-464f-ac71-000d2ccb982c
+
+https://github.com/user-attachments/assets/e2cc5b11-8d30-4296-82ce-3d0ebcad5793
+
+
 
 ## Tech Stack
 * **Unity 2022** — Game engine
